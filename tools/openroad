@@ -1,0 +1,8 @@
+#!/bin/bash
+# openroad shim: OpenLane1-image binary + isolated compat libs (no containers).
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+DIFF=/home/indhirajith/.local/share/containers/storage/overlay/bddb7117b6472d658b3b27d9ff4439681ee2bb77a44cb833e6d9419ccfa691e5/diff
+TCLLIB=/home/indhirajith/.local/share/containers/storage/overlay/e2a2a19f12788f70937de66cb996e4923cea0f3e3e4082667c354a6fcf6da4b0/diff/usr/share/tcl8.5
+export LD_LIBRARY_PATH="$ROOT/tools/oldlibs"
+export TCL_LIBRARY="$TCLLIB"
+exec "$DIFF/build/bin/openroad" "$@"

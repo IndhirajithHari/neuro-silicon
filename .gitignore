@@ -8,3 +8,7 @@ __pycache__
 *.swp
 .vscode/
 .idea/
+.venv/
+.pytest_cache/
+logs/
+Chip models/

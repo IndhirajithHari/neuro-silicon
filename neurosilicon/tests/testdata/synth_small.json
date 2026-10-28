@@ -1,0 +1,35 @@
+{"modules": {
+  "mini": {
+    "ports": {
+      "clk": {"direction": "input", "bits": [2]},
+      "out": {"direction": "output", "bits": [3]}},
+    "cells": {
+      "u_a": {"type": "mod_a",
+        "port_directions": {"clk": "input", "y": "output"},
+        "connections": {"clk": [2], "y": [4]}},
+      "u_b": {"type": "mod_b",
+        "port_directions": {"a": "input", "y": "output"},
+        "connections": {"a": [4], "y": [5]}},
+      "u_c": {"type": "mod_a",
+        "port_directions": {"clk": "input", "y": "output"},
+        "connections": {"clk": [5], "y": [6]}},
+      "u_d": {"type": "mod_b",
+        "port_directions": {"a": "input", "y": "output"},
+        "connections": {"a": [6], "y": [3]}}}},
+  "mod_a": {
+    "ports": {
+      "clk": {"direction": "input", "bits": [2]},
+      "y": {"direction": "output", "bits": [3]}},
+    "cells": {
+      "g1": {"type": "FAKE_BUF",
+        "port_directions": {"A": "input", "X": "output"},
+        "connections": {"A": [2], "X": [3]}}}},
+  "mod_b": {
+    "ports": {
+      "a": {"direction": "input", "bits": [2]},
+      "y": {"direction": "output", "bits": [3]}},
+    "cells": {
+      "g1": {"type": "FAKE_INV",
+        "port_directions": {"A": "input", "X": "output"},
+        "connections": {"A": [2], "X": [3]}}}}
+}}

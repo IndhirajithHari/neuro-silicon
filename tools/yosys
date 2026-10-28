@@ -1,0 +1,7 @@
+#!/bin/bash
+# yosys shim: OpenLane1-image binary + isolated compat libs (no containers).
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+DIFF=/home/indhirajith/.local/share/containers/storage/overlay/ebc441c66b17c5cfd7e14080ad42cc981a540ac864a425ba92fcb86a72f610e2/diff
+export LD_LIBRARY_PATH="$ROOT/tools/oldlibs"
+export PATH="$DIFF/build/bin:$PATH"
+exec "$DIFF/build/bin/yosys" "$@"
