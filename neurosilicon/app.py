@@ -66,10 +66,17 @@ REQUIRED_API = {
     'neurosilicon.env': ['ChipPlacementEnv'],
     'neurosilicon.evaluate': ['rollout_first_legal', 'rollout_policy',
                               'rollout_random', 'run_baselines'],
-    'neurosilicon.export_def': ['export_def'],
+    'neurosilicon.export_def': ['export_def', 'openroad_tcl_text'],
     'neurosilicon.finetune': ['run_cd'],
     'neurosilicon.flatten_def': ['flatten'],
     'neurosilicon.gnn_viz': ['simulate'],
+    'neurosilicon.assistant': ['bottleneck_rtl_advice',
+                               'diagnose_placement',
+                               'multi_agent_review'],
+    'neurosilicon.liveplace': ['apply_positions', 'critical_path',
+                               'format_ppa_summary', 'net_hpwl',
+                               'optimize_orientations', 'ppa_delta',
+                               'ppa_metrics', 'simulated_annealing'],
     'neurosilicon.llm': ['LLMError', 'advise', 'chat',
                          'parse_constraints', 'test_connection'],
     'neurosilicon.model': ['CircuitPolicy'],
@@ -83,10 +90,14 @@ REQUIRED_API = {
                              'register_netlist', 'repo_root',
                              'resolve_pdk', 'resolve_tool',
                              'scan_folder'],
-    'neurosilicon.render': ['cost_breakdown_figure', 'estimate_power',
+    'neurosilicon.render': ['comparison_figure',
+                            'cost_breakdown_figure',
+                            'draw_critical_path', 'estimate_power',
                             'figure_png', 'history_figure',
+                            'kpi_bar_figure',
                             'plot_congestion', 'plot_floorplan',
                             'plot_sim_step', 'plot_thermal'],
+    'neurosilicon.tech': ['TECH_NODES', 'corner_power', 'preset'],
     'neurosilicon.settings': ['SECTIONS', 'SETTINGS_PATH', 'defaults',
                               'load', 'redacted', 'save'],
     'neurosilicon.setup': ['create_plc'],
@@ -382,6 +393,90 @@ def run_episodes(netlist, init_plc, method, episodes, fd, mask_fn,
   return rows, best_plc, best_cost, notes
 
 
+def run_auto_optimize(netlist, init_plc, llm_settings, engine,
+                      episodes=1, fd=2, seed=0, on_iter=None,
+                      polish=False, orient=False):
+  """3-iteration Auto-Optimize loop (pure compute, no Streamlit).
+
+  Iter 1 baseline -> Iter 2 SAM + Muse diagnosis -> Iter 3 AI-guided
+  re-placement (diagnosed keep-out mask + thermal/congestion pressure;
+  weights-only retry when the mask dead-ends). Returns a dict with
+  both row sets/plcs, both PPA snapshots, the diagnosis, and the
+  formatted PPA Improvement Summary (or {'error': ...}).
+  """
+  from neurosilicon import assistant as assistant_lib
+  from neurosilicon import liveplace as liveplace_lib
+  from neurosilicon import priors as priors_lib
+  from neurosilicon import render as render_lib
+  from neurosilicon import setup as setup_lib
+
+  def note(msg):
+    if on_iter is not None:
+      on_iter(msg)
+
+  note('Iter 1/3 — Baseline placement')
+  base_rows, base_plc, base_cost, _n = run_episodes(
+      netlist, init_plc, 'first_legal', episodes, fd, None, None, '',
+      0, seed)
+  if base_plc is None:
+    return {'error': 'Baseline placement was infeasible.'}
+  base_ppa = liveplace_lib.ppa_metrics(base_plc)
+  note('Iter 2/3 — SAM hotspot + muse-arcadia-1.0 diagnosis')
+  diag = assistant_lib.diagnose_placement(
+      base_plc, llm_settings, engine.get('congestion_weight', 0.5),
+      engine.get('thermal_weight', 0.0))
+  note('Iter 3/3 — AI-guided re-placement')
+  template = setup_lib.create_plc(netlist, init_placement=init_plc)
+  cols, rows_g = template.get_grid_num_columns_rows()
+  canvas_w, canvas_h = template.get_canvas_width_height()
+  mask_fn = None
+  if diag.get('rects'):
+    mask_fn = priors_lib.make_keepout_fn(
+        cols, rows_g, canvas_w, canvas_h,
+        [tuple(r) for r in diag['rects']])
+  power = render_lib.estimate_power(template)
+  extra = [('thermal', float(diag['thermal_weight']),
+            lambda plc, p=power: priors_lib.thermal_overlap_penalty(
+                plc, p))]
+  boost = float(diag['congestion_weight']) - 0.5
+  if boost > 0:
+    extra.append(('congestion_boost', boost,
+                  lambda plc: plc.get_congestion_cost()))
+  ai_rows, ai_plc, ai_cost, _n2 = run_episodes(
+      netlist, init_plc, 'first_legal', episodes, fd, mask_fn, extra,
+      '', 0, seed)
+  retried = False
+  if ai_plc is None and mask_fn is not None:
+    retried = True
+    ai_rows, ai_plc, ai_cost, _n2 = run_episodes(
+        netlist, init_plc, 'first_legal', episodes, fd, None, extra,
+        '', 0, seed)
+  if ai_plc is None:
+    return {'error': 'AI-guided re-placement was infeasible.',
+            'diagnosis': diag}
+  polish_info = None
+  if polish or orient:
+    orientations, ob, oa = liveplace_lib.optimize_orientations(ai_plc)
+    if not orient:
+      orientations, oa = {}, ob
+    polish_info = {'hpwl_before': ob, 'hpwl_after': oa,
+                   'orientations': orientations, 'accepted': 0}
+    if polish:
+      sa = liveplace_lib.simulated_annealing(
+          ai_plc, steps=200, seed=seed, orientations=orientations)
+      liveplace_lib.apply_positions(ai_plc, sa['positions'])
+      polish_info.update({'hpwl_after': sa['hpwl_after'],
+                          'orientations': sa['orientations'],
+                          'accepted': sa['accepted']})
+  ai_ppa = liveplace_lib.ppa_metrics(ai_plc)
+  return {'base_rows': base_rows, 'base_plc': base_plc,
+          'base_cost': base_cost, 'base_ppa': base_ppa,
+          'diagnosis': diag, 'ai_rows': ai_rows, 'ai_plc': ai_plc,
+          'ai_cost': ai_cost, 'ai_ppa': ai_ppa, 'retried': retried,
+          'polish': polish_info,
+          'summary': liveplace_lib.format_ppa_summary(base_ppa, ai_ppa)}
+
+
 def _get_plc():
   from neurosilicon.thirdparty.tilos.Plc_client import (
       placement_util_os as placement_util)
@@ -576,6 +671,60 @@ def page_dashboard(st, settings):
               'and settings.')
 
 
+def _run_auto_page(st, settings, choice, netlist_pair,
+                   polish=True, orient=True):
+  """Streamlit driver for run_auto_optimize: saves both runs."""
+  import datetime
+
+  from neurosilicon import render as render_lib
+
+  netlist, init_plc = netlist_pair
+  stamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+  with st.status('⚡ Auto-Optimize (AI Loop)…', expanded=True) as status:
+    result = run_auto_optimize(
+        netlist, init_plc, settings['llm'], settings['engine'],
+        episodes=1, fd=settings['run']['fd_steps'],
+        seed=settings['run']['seed'],
+        on_iter=lambda m: st.write(m + '…'),
+        polish=polish, orient=orient)
+    if result.get('error'):
+      status.update(label='Auto-Optimize stopped.', state='error')
+      st.error(result['error'])
+      return
+    diag = result['diagnosis']
+    st.write(f"Diagnosis ({diag['source']}): "
+             f"{', '.join(diag['actions'])} — {diag['explanation']}")
+    status.update(label='Auto-Optimize complete.', state='complete')
+  saved = {}
+  for tag, rows, plc, cost in (
+      ('baseline', result['base_rows'], result['base_plc'],
+       result['base_cost']),
+      ('ai', result['ai_rows'], result['ai_plc'], result['ai_cost'])):
+    run_id = f'{stamp}_{tag}'
+    run = {'choice': choice, 'netlist': netlist, 'rows': rows,
+           'best_cost': cost, 'power': render_lib.estimate_power(plc),
+           'advice': None, 'validated': None, 'run_id': run_id,
+           'started_at': stamp, 'mode': 'auto_optimize',
+           'method': 'first_legal', 'ckpt': '', 'episodes': len(rows),
+           'fd': settings['run']['fd_steps'], 'cd_epochs': 0,
+           'seed': settings['run']['seed'],
+           'mask': diag['explanation'], 'blocked': None}
+    try:
+      saved[tag] = save_gui_run(run_id, run, plc)
+    except (OSError, ValueError) as e:
+      st.warning(f'Could not save the {tag} run: {e}')
+    if tag == 'ai':
+      st.session_state['last_run'] = run
+      st.session_state['last_plc'] = plc
+  st.session_state['compare_dirs'] = saved
+  st.session_state['ppa_summary'] = result['summary']
+  st.success('⚡ Auto-Optimize complete — Baseline (Run #1) vs AI-optimized '
+             'below. Results & downloads → Compare (Baseline vs. AI) '
+             'shows the split-screen view.')
+  st.text(result['summary'])
+  st.table(result['base_rows'] + result['ai_rows'])
+
+
 def page_run(st, settings):
   from neurosilicon import render as render_lib
   from neurosilicon import setup as setup_lib
@@ -631,6 +780,16 @@ def page_run(st, settings):
         'CD finetune epochs', 0, 10, 2,
         help='Coordinate-descent passes over macro positions after '
              'each episode. 0 disables.')
+    polish = st.checkbox(
+        'Post-Placement Polish (200-step Simulated Annealing macro swap)',
+        value=True,
+        help='200 SA macro swaps/flips/nudges on the best placement '
+             'to cut pin-aware HPWL and congestion.')
+    orient = st.checkbox(
+        'Optimize macro orientation flips (0°/90°/180°/270°, HPWL)',
+        value=True,
+        help='Keeps the HPWL-best orientation per hard macro; '
+             'exports as R0/R90/R180/R270 in the OpenROAD Tcl.')
   with right:
     mask_kind = st.selectbox(
         'Constraint mask',
@@ -655,7 +814,15 @@ def page_run(st, settings):
     go = st.button('Run floorplan', type='primary',
                     help='Runs the configured episodes now. Results land '
                          'on Results & downloads.')
+    auto = st.button('⚡ Auto-Optimize (AI Loop)',
+                     help='Autonomous 3-iteration loop: baseline → SAM '
+                          '+ muse-arcadia-1.0 diagnosis → AI-guided '
+                          're-placement. Both runs are saved; the PPA '
+                          'Improvement Summary shows here and in Results.')
 
+  if auto:
+    _run_auto_page(st, settings, choice, nets[choice], polish, orient)
+    return
   if not go:
     st.info('Configure the run, then press **Run floorplan**.')
     return
@@ -739,6 +906,22 @@ def page_run(st, settings):
     st.error('All episodes were infeasible. Loosen the constraint mask, '
              'or switch mode to heuristic / first_legal.')
     return
+  if polish or orient:
+    from neurosilicon import liveplace as liveplace_lib
+    orientations, ob, oa = liveplace_lib.optimize_orientations(best_plc)
+    if not orient:
+      orientations, oa = {}, ob
+    if polish:
+      sa = liveplace_lib.simulated_annealing(
+          best_plc, steps=200, seed=settings['run']['seed'],
+          orientations=orientations)
+      liveplace_lib.apply_positions(best_plc, sa['positions'])
+      orientations, oa = sa['orientations'], sa['hpwl_after']
+    st.session_state['orientations'] = orientations
+    gain = (ob - oa) / max(ob, 1e-9) * 100
+    st.write(f'SA polish + orientation flips: pin-HPWL {ob:.0f} → '
+             f'{oa:.0f} µm ({gain:+.1f}%). Orientations export in '
+             'the OpenROAD Tcl (Results → Files).')
   st.session_state['last_run'] = {
       'choice': choice, 'netlist': netlist, 'rows': rows_out,
       'best_cost': best_cost, 'power': power,
@@ -837,6 +1020,18 @@ def _import_section(st, settings):
   go = st.button('Import and baseline', type='primary',
                  help='Synthesizes the RTL, converts to a floorplan '
                       'netlist, baselines it, and registers the project.')
+  rtl = st.button('Suggest RTL Fix for Bottleneck',
+                  help='Muse co-pilot: propose an RTL fix (memory '
+                       'banking, bus pipelining, or clock gating) for '
+                       'the bottleneck module in this folder (e.g. '
+                       'a25_dcache.v / a25_icache.v).')
+  if rtl:
+    from neurosilicon import assistant as assistant_lib
+    _run, plc = _current_run_plc(st)
+    with st.spinner('Reading the bottleneck RTL…'):
+      text, _used, _info = assistant_lib.bottleneck_rtl_advice(
+          plc, [folder], settings['llm'])
+    st.markdown(text)
   if not go:
     return
   if not files or not top or top == '(none found)':
@@ -894,6 +1089,52 @@ def _best_plc_path():
   return path
 
 
+def _compare_section(st, current_plc, current_power):
+  """Before vs. After split view (Baseline Run #1 vs. best AI run)."""
+  import matplotlib.pyplot as plt
+
+  from neurosilicon import liveplace as liveplace_lib
+  from neurosilicon import render as render_lib
+
+  dirs = st.session_state.get('compare_dirs') or {}
+  base_plc = ai_plc = None
+  if dirs.get('baseline') and dirs.get('ai'):
+    try:
+      _r1, base_plc = load_gui_run(dirs['baseline'])
+      _r2, ai_plc = load_gui_run(dirs['ai'])
+    except Exception:
+      base_plc = ai_plc = None
+  if base_plc is None:
+    saved = list_gui_runs()
+    if len(saved) >= 2:
+      try:
+        _r1, base_plc = load_gui_run(saved[1]['_dir'])
+        _r2, ai_plc = load_gui_run(saved[0]['_dir'])
+      except Exception:
+        base_plc = ai_plc = None
+  if base_plc is None or ai_plc is None:
+    st.info('Compare (Baseline vs. AI) needs at least 2 runs — press '
+            '⚡ Auto-Optimize (AI Loop) on Run floorplan first.')
+    return
+  before = liveplace_lib.ppa_metrics(base_plc)
+  after = liveplace_lib.ppa_metrics(ai_plc)
+  delta = liveplace_lib.ppa_delta(before, after)
+  left, right = st.columns(2)
+  left.markdown('**Left — Run #1 (Baseline)**')
+  right.markdown('**Right — Best AI-Optimized (Run #2+)**')
+  fig = render_lib.comparison_figure(base_plc, ai_plc)
+  st.pyplot(fig)
+  plt.close(fig)
+  b1, b2, b3 = st.columns(3)
+  b1.metric('Δ Congestion %', f"{delta['congestion_pct']:+.1f}%",
+            delta=f"{delta['congestion_pct']:+.1f}% Congestion")
+  b2.metric('Δ Wirelength %', f"{delta['wirelength_pct']:+.1f}%",
+            delta=f"{delta['wirelength_pct']:+.1f}% Wirelength")
+  b3.metric('Δ Peak Power %', f"{delta['peak_power_pct']:+.1f}%",
+            delta=f"{delta['peak_power_pct']:+.1f}% Peak mW")
+  st.text(liveplace_lib.format_ppa_summary(before, after))
+
+
 def page_results(st, settings):
   from neurosilicon import export_def as export_def_lib
   from neurosilicon import flatten_def as flatten_lib
@@ -934,7 +1175,9 @@ def page_results(st, settings):
   tab_fig, tab_insp, tab_files, tab_valid, tab_curves = st.tabs(
       ['Figures', 'Inspector', 'Files', 'Validation', 'Curves'])
   with tab_fig:
-    c1, c2, c3 = st.columns(3)
+    from neurosilicon import liveplace as liveplace_lib
+    cp = liveplace_lib.critical_path(plc)
+    c1, c2, c3, c4, c5 = st.columns(5)
     c1.metric('Best proxy cost', f"{run['best_cost']:.4f}",
               help='Lowest wl + 0.5·cong + dens over episodes (plus any '
                    'thermal/broadcast extras).')
@@ -943,8 +1186,53 @@ def page_results(st, settings):
                    'excluded from best).')
     c3.metric('Netlist', run['choice'][:32],
               help='Design that was placed.')
+    c4.metric('est. Fmax (MHz)', f"{cp['fmax_mhz']:.0f}",
+              help=f"Critical delay {cp['delay_ns']:.2f} ns (Manhattan "
+                   'wire + macro logic delay proxy, not signoff STA). '
+                   'Path: ' + ' → '.join(cp['path'][:6]))
+    c5.metric('crit. delay (ns)', f"{cp['delay_ns']:.2f}",
+              help='Longest macro-to-macro signal-path delay proxy.')
+    view = st.selectbox(
+        'Canvas view',
+        ['Normal', 'Floorplan', 'Thermal', 'Congestion',
+         'Compare (Baseline vs. AI)'],
+        help='Compare needs 2 runs (press ⚡ Auto-Optimize (AI Loop) '
+             'on Run floorplan to create the Baseline + AI pair).')
+    show_cp = st.checkbox(
+        'Show Critical Path',
+        help='Gold/magenta directed arrows along the critical timing '
+             'path across its macros.')
+    import matplotlib.pyplot as plt
+
+    if view == 'Compare (Baseline vs. AI)':
+      _compare_section(st, plc, power)
+    else:
+      if view in ('Normal', 'Floorplan'):
+        fig = render_lib.plot_floorplan(plc, blocked=run.get('blocked'))
+        if show_cp:
+          render_lib.draw_critical_path(fig.axes[0], plc, cp)
+          st.caption('Critical path: ' + ' → '.join(cp['path']) +
+                     f" · {cp['delay_ns']:.2f} ns · est. Fmax "
+                     f"{cp['fmax_mhz']:.0f} MHz (proxy)")
+        st.pyplot(fig)
+        plt.close(fig)
+      elif view == 'Thermal':
+        fig = render_lib.plot_thermal(plc, power)
+        st.pyplot(fig)
+        plt.close(fig)
+      else:
+        fig = render_lib.plot_congestion(plc)
+        st.pyplot(fig)
+        plt.close(fig)
+    if st.session_state.get('ppa_summary'):
+      st.subheader('PPA Improvement Summary')
+      st.text(st.session_state['ppa_summary'])
     st.caption('Per-episode cost components (-1 marks infeasible).')
     st.table(rows)
+    st.subheader('Before vs. After KPI — Pareto Chart')
+    kpi_fig = render_lib.kpi_bar_figure(rows)
+    st.pyplot(kpi_fig)
+    plt.close(kpi_fig)
     if run.get('advice'):
       st.subheader('LLM review')
       st.markdown(run['advice'])
@@ -996,6 +1284,13 @@ def page_results(st, settings):
                        file_name='best.plc',
                        help='Macro positions/orientations for reload or '
                             'downstream tools.')
+    d1.download_button(
+        'Download OpenROAD .tcl',
+        export_def_lib.openroad_tcl_text(
+            plc, st.session_state.get('orientations')),
+        file_name='placed_openroad.tcl',
+        help='OpenROAD place_macro script (one line per hard macro, '
+             'R0/R90/R180/R270) — use alongside placed.def.')
     import tempfile
     viewer = os.path.join(tempfile.gettempdir(), 'neurosilicon_best.def')
     export_def_lib.export_def(plc, viewer)
@@ -1213,7 +1508,29 @@ def page_thermal(st, settings):
   st.caption(f"Placement: {run['choice']} "
              f"(best proxy {run['best_cost']:.4f}).")
 
-  base = run.get('power')
+  from neurosilicon import tech as tech_lib
+  node_labels = {v['label']: k for k, v in tech_lib.TECH_NODES.items()}
+  node_label = st.selectbox(
+      'Technology Node', list(node_labels),
+      help='Preset rescales voltage, default clock, static leakage / '
+           'temperature, and the congestion multiplier below.')
+  node_key = node_labels[node_label]
+  node = tech_lib.preset(node_key)
+  if st.session_state.get('thermal_node') != node_key:
+    st.session_state['thermal_node'] = node_key
+    st.session_state['thermal_clock'] = int(node['clock_mhz'])
+    st.caption(f"Technology Node → {node['label']}: leakage ×"
+               f"{node['leakage_factor']} (ΔT "
+               f"{node['temp_offset_c']:+.0f}°C proxy), congestion ×"
+               f"{node['congestion_multiplier']}. {node['note']} "
+               'Thermal map below uses this node corner power.')
+    base = tech_lib.corner_power(plc, node_key)
+  st.caption(f"Node corner power: {node_key} (leakage ×"
+             f"{node['leakage_factor']}, congestion ×"
+             f"{node['congestion_multiplier']}) — the map and hotspot "
+             'table rescale instantly on switch.')
+  if 'base' not in locals() or base is None:
+    base = run.get('power')
   uploaded = st.file_uploader(
       'Base power JSON (optional)',
       help='{"macro": watts-ish} reference shares. Without it, uses the '
@@ -1411,10 +1728,61 @@ def page_assistant(st, settings):
         ok, message, secs = llm_lib.test_connection(settings['llm'])
       (st.success if ok else st.error)(f'{message} ({secs}s)')
   st.subheader('Ask about the last run')
-  run, _ = _current_run_plc(st)
+  run, plc = _current_run_plc(st)
   if not run:
     st.caption('Run a floorplan first — the assistant reviews real runs.')
     return
+  from neurosilicon import assistant as assistant_lib
+
+  q1, q2 = st.columns(2)
+  if q1.button('⚡ Auto-Optimize (AI Loop)',
+               help='Baseline → SAM + Muse diagnosis → AI-guided '
+                    're-placement on this design.'):
+    nets = all_netlists()
+    pair = nets.get(run['choice'])
+    if not pair:
+      st.error('Design no longer available for Auto-Optimize.')
+    else:
+      with st.spinner('⚡ Auto-Optimize running (3 iterations)…'):
+        result = run_auto_optimize(pair[0], pair[1], settings['llm'],
+                                   settings['engine'], episodes=1,
+                                   fd=settings['run']['fd_steps'],
+                                   seed=settings['run']['seed'])
+      if result.get('error'):
+        st.error(result['error'])
+      else:
+        st.session_state['ppa_summary'] = result['summary']
+        st.markdown('**PPA Improvement Summary**')
+        st.text(result['summary'])
+  if st.button('Run 3-Agent Design Review',
+               help='Thermal Specialist + Routing & Timing Specialist '
+                    '+ Lead Physical Design Architect review with '
+                    'recommended Wirelength/Congestion/Thermal weights.'):
+    from neurosilicon import liveplace as liveplace_lib
+    ctx = {'design': run['choice'], 'canvas': (0.0, 0.0),
+           'results': run['rows'],
+           'best_proxy': run['best_cost'],
+           'hottest': sorted(
+               (run.get('power') or {}).items(),
+               key=lambda kv: -kv[1])[:5],
+           'ppa': liveplace_lib.ppa_metrics(plc),
+           'critical': liveplace_lib.critical_path(plc)}
+    text, weights = assistant_lib.multi_agent_review(ctx)
+    st.markdown(text)
+    st.caption('Recommended weights — wl '
+               f"{weights['wirelength_weight']:.2f} · cong "
+               f"{weights['congestion_weight']:.2f} · thermal "
+               f"{weights['thermal_weight']:.2f} (set them in "
+               'Settings → Placement Engine, then Auto-Optimize).')
+  if q2.button('Suggest RTL Fix for Bottleneck',
+               help='Muse co-pilot RTL fix for the hottest / most '
+                    'congested macro, from its .v source.'):
+    roots = [st.session_state.get('import_folder', ''),
+             'Chip models/amber/hw/vlog/amber25']
+    with st.spinner('Reading the bottleneck RTL…'):
+      text, _used, _info = assistant_lib.bottleneck_rtl_advice(
+          plc, [r for r in roots if r], settings['llm'])
+    st.markdown(text)
   st.write(f"Netlist: {run['choice']}. Best proxy: {run['best_cost']:.4f}.")
   question = st.text_area(
       'Question',

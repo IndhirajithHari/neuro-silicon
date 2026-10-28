@@ -140,20 +140,9 @@ def chat(messages, llm_settings):
 
 
 def _get_json(url, timeout, api_key=''):
-  req = urllib.request.Request(
-      url, headers={'Content-Type': 'application/json',
-                    'Authorization': f'Bearer {api_key}'} if api_key
-      else {'Content-Type': 'application/json'})
-  try:
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
-      return json.loads(resp.read().decode('utf-8'))
-  except urllib.error.HTTPError as e:
-    body = e.read().decode('utf-8', 'replace')[:300]
-    raise LLMError(f'LLM HTTP {e.code}: {body}')
-  except urllib.error.URLError as e:
-    raise LLMError(f'LLM unreachable ({url}): {e.reason}')
-  except (TimeoutError, json.JSONDecodeError) as e:
-    raise LLMError(f'LLM bad response ({url}): {e}')
+  return _request_json(
+      lambda: urllib.request.Request(url, headers=_headers(api_key)),
+      url, timeout)
 
 
 def list_models(llm_settings):

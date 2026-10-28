@@ -32,6 +32,8 @@ def plot_floorplan(plc, ax=None, show_ports=True, show_soft=True,
         patches.Rectangle((x0, y0), x1 - x0, y1 - y0,
                           facecolor='#ef444433', edgecolor='#ef4444',
                           linestyle='--', linewidth=1.0))
+  from neurosilicon import liveplace as liveplace_lib
+  seen_groups = []
   for idx in plc.get_macro_indices():
     x, y = plc.get_node_location(idx)
     mw, mh = plc.get_node_width_height(idx)
@@ -40,10 +42,22 @@ def plot_floorplan(plc, ax=None, show_ports=True, show_soft=True,
         continue
       fc, ec = '#64748b55', '#94a3b8'
     else:
-      fc, ec = '#0284c788', '#38bdf8'
+      _g, label, fill, edge = liveplace_lib.hierarchy_group(
+          plc.get_node_name(idx))
+      fc, ec = fill + 'cc', edge
+      if label not in seen_groups:
+        seen_groups.append(label)
     ax.add_patch(
         patches.Rectangle((x - mw / 2, y - mh / 2), mw, mh,
                           facecolor=fc, edgecolor=ec, linewidth=1.0))
+  if own and seen_groups:
+    handles = []
+    for _g, label, fill, edge in liveplace_lib.HIERARCHY_GROUPS:
+      if label in seen_groups:
+        handles.append(patches.Patch(facecolor=fill, edgecolor=edge,
+                                     label=label))
+    ax.legend(handles=handles, loc='upper right', fontsize=7,
+              title='RTL hierarchy', title_fontsize=7)
   if show_ports:
     xs, ys = [], []
     for idx in plc.port_indices:
@@ -235,6 +249,73 @@ def plot_sim_step(canvas, placed, probs, current_macro, action_cell,
           markersize=14, markeredgecolor='black')
   ax.set_title(f'Step {step + 1}/{total}: {current_macro} → '
                f'({r},{c}) p={p:.3f} V={value:.2f}')
+  return fig
+
+
+def draw_critical_path(ax, plc, cp=None):
+  """Overlays the critical timing path (gold/magenta arrows) on `ax`.
+
+  `cp` is a liveplace.critical_path() result; computed when omitted.
+  Segments route Manhattan-style (horizontal then vertical elbow)
+  between block centers, with an arrowhead at every hop. Returns cp.
+  """
+  from neurosilicon import liveplace as liveplace_lib
+  cp = cp or liveplace_lib.critical_path(plc)
+  pts = cp.get('points') or []
+  for (x1, y1), (x2, y2) in zip(pts, pts[1:]):
+    ax.plot([x1, x2, x2], [y1, y1, y2], color='#ff2ea6', linewidth=4.0,
+            alpha=0.55, zorder=5, solid_capstyle='round')
+    ax.plot([x1, x2, x2], [y1, y1, y2], color='#ffd700', linewidth=1.8,
+            zorder=6, solid_capstyle='round')
+    ax.annotate('', xy=(x2, y2), xytext=(x2, y1),
+                arrowprops={'arrowstyle': '-|>', 'color': '#ffd700',
+                            'lw': 1.8}, zorder=6)
+  if pts:
+    ax.scatter([p[0] for p in pts], [p[1] for p in pts], s=26,
+               c='#ffd700', edgecolors='#ff2ea6', zorder=7)
+  return cp
+
+
+def comparison_figure(plc_before, plc_after, before_label='Run #1 — Baseline',
+                      after_label='Best AI-Optimized'):
+  """Before vs. After split figure: two floorplans side by side."""
+  fig, axes = plt.subplots(1, 2, figsize=(13, 6))
+  for ax, plc, label in ((axes[0], plc_before, before_label),
+                         (axes[1], plc_after, after_label)):
+    plot_floorplan(plc, ax=ax)
+    ax.set_title(label)
+  fig.tight_layout()
+  return fig
+
+
+def kpi_bar_figure(rows):
+  """Before vs. After KPI bars: proxy/wirelength/congestion per run.
+
+  Feasible rows only, in run order — the Pareto-style trade-off view
+  (lower is better on every bar; the best run per metric wins).
+  """
+  import numpy as np
+  feas = [r for r in (rows or []) if r.get('proxy_cost', -1) > 0]
+  fig, ax = plt.subplots(figsize=(max(7, len(feas) * 1.2), 4))
+  if not feas:
+    ax.set_title('KPI bars — no feasible runs yet')
+    return fig
+  labels = [f"{r.get('method', '?')[:18]}#{r.get('episode', '?')}"
+            for r in feas]
+  x = np.arange(len(feas))
+  ax.bar(x - 0.25, [r['proxy_cost'] for r in feas], 0.25,
+         label='Proxy Cost', color='#e8a33d')
+  ax.bar(x, [r['wirelength'] for r in feas], 0.25,
+         label='Wirelength', color='#38bdf8')
+  ax.bar(x + 0.25, [r['congestion'] for r in feas], 0.25,
+         label='Congestion', color='#e879f9')
+  ax.set_xticks(x)
+  ax.set_xticklabels(labels, rotation=30, ha='right', fontsize=8)
+  ax.set_ylabel('cost (lower is better)')
+  ax.set_title('Before vs. After KPI — Proxy / Wirelength / Congestion '
+               'per run (Pareto view)')
+  ax.legend()
+  fig.tight_layout()
   return fig
 
 

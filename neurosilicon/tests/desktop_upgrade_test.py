@@ -127,6 +127,35 @@ def test_guide_and_connector_status():
   assert ok is False and 'off' in (label + detail).lower()
 
 
+def test_rudy_congestion_and_segmentation():
+  from neurosilicon import setup as setup_lib
+  plc = setup_lib.create_plc(TOY_NETLIST, TOY_PLC)
+  grid, overall, peak = liveplace_lib.rudy_grid(plc)
+  assert grid and overall > 0 and peak >= overall > 0
+  ca = liveplace_lib.congestion_analysis(plc)
+  assert ca['peak_congestion_tiles']
+  assert ca['overall_congestion'] == overall
+  clusters = liveplace_lib.segment_hotspots(grid)
+  assert isinstance(clusters, list)
+  hard = [plc.get_node_name(i) for i in plc.get_macro_indices()
+          if not plc.is_node_soft_macro(i)]
+  assert isinstance(liveplace_lib.segments_for_macro(plc, hard[0]),
+                    list)
+
+
+def test_assistant_congestion_reports_tiles():
+  llm = settings_lib.defaults()['llm']
+  ctx = {'design': 'toy', 'canvas': (200.0, 100.0), 'results': [],
+         'congestion_analysis': {
+             'overall_congestion': 1.56, 'peak_congestion': 2.4,
+             'peak_congestion_tiles': [(3, 2, 2.4), (4, 2, 1.9)],
+             'congested_macros': [{'name': 'MR', 'nets': 9,
+                                   'peak_tile': 2.4, 'soft': False}]}}
+  text, used = assistant_lib.answer('Why is congestion high?', ctx, llm)
+  assert used is False
+  assert '(3, 2)' in text and 'MR (9 nets)' in text and '1.56' in text
+
+
 def test_live_rollout_snapshots():
   snaps = []
   info, frames = liveplace_lib.run_live_rollout(
@@ -143,3 +172,9 @@ def test_live_rollout_snapshots():
   assert liveplace_lib.frame_power(frames[0]) == {}
   heat = liveplace_lib.frame_power(last)
   assert heat and all(v > 0 for v in heat.values())
+  lives = []
+  liveplace_lib.run_live_rollout(
+      TOY_NETLIST, TOY_PLC, fd_steps=(2, 2, 2), init_fd=False,
+      on_live=lives.append)
+  assert lives and lives[-1]['wirelength'] >= 0
+  assert lives[-1]['congestion'] >= 0

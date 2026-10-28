@@ -85,6 +85,25 @@ def test_llm_ollama_native_shape():
   assert req.get_header('Authorization') is None
 
 
+def test_chat_retries_ssl_eof_with_close_header():
+  import ssl
+  seen = []
+
+  def flaky(req, timeout=0):
+    seen.append(req.get_header('Connection'))
+    if len(seen) < 3:
+      raise ssl.SSLError(
+          '[SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred')
+    return _FakeResp({'choices': [{'message': {'content': 'ok'}}]})
+
+  with mock.patch.object(llm_lib.time, 'sleep', lambda s: None), \
+          mock.patch.object(llm_lib.urllib.request, 'urlopen',
+                            side_effect=flaky):
+    out = llm_lib.chat([{'role': 'user', 'content': 'hi'}], _llm('api'))
+  assert out == 'ok'
+  assert seen == ['close', 'close', 'close']
+
+
 def test_list_models_api_and_ollama():
   body = {'data': [{'id': 'Llama-3.3-70B'}, {'id': 'Llama-4-Scout'}]}
   with mock.patch.object(llm_lib.urllib.request, 'urlopen',

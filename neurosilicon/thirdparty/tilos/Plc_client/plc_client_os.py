@@ -2005,63 +2005,50 @@ class PlacementCost(object):
                 clustered_ports[(row, col)] = [port]
         
         # NOTE: in pb.txt, netlist input count exceed certain threshold will be ommitted
-        macro_adj = [0] * (len(module_indices) + len(clustered_ports)) * (len(module_indices) + len(clustered_ports))
+        # Sparse-accumulation build (identical matrix/ordering to the
+        # original O(N^2) double loop, which took minutes beyond the
+        # 5000-node era — openc906 has 16k nodes): walk each module's
+        # connection dict once and add both symmetric entries; the
+        # pair total still equals conn_j[i] + conn_i[j] as before.
+        num_nodes = len(module_indices) + len(clustered_ports)
+        macro_adj = [0] * num_nodes * num_nodes
         cell_location = [0] * len(clustered_ports)
-
-        # instantiate macros
-        for row_idx, module_idx in enumerate(sorted(module_indices)):
-            # store temp module
-            curr_module = self.modules_w_pins[module_idx]
-            # get module name
-            curr_module_name = curr_module.get_name()
-
-            for col_idx, h_module_idx in enumerate(sorted(module_indices)):
-                # col index
-                entry = 0
-                # store connected module
-                h_module = self.modules_w_pins[h_module_idx]
-                # get connected module name
-                h_module_name = h_module.get_name()
-
-                if curr_module_name in h_module.get_connection():
-                    entry += h_module.get_connection()[curr_module_name]
-
-                if h_module_name in curr_module.get_connection():
-                    entry += curr_module.get_connection()[h_module_name]
-
-                macro_adj[row_idx * (len(module_indices) + len(clustered_ports)) + col_idx] = entry
-                macro_adj[col_idx * (len(module_indices) + len(clustered_ports)) + row_idx] = entry
-        
-        # instantiate clustered ports
-        for row_idx, cluster_cell in enumerate(sorted(clustered_ports, key=lambda tup: tup[1])):
-            # add cell location
+        ordered = sorted(module_indices)
+        name_to_row = {}
+        for row_idx, module_idx in enumerate(ordered):
+            name_to_row[self.modules_w_pins[module_idx].get_name()] = row_idx
+        cluster_of_port = {}
+        for row_idx, cluster_cell in enumerate(
+                sorted(clustered_ports, key=lambda tup: tup[1])):
             cell_location[row_idx] = cluster_cell[0] * self.grid_col + cluster_cell[1]
-
-            # relocate to after macros
-            row_idx += len(module_indices)
-
-            # for each port within a grid cell
             for curr_port in clustered_ports[cluster_cell]:
-                # get module name
-                curr_port_name = curr_port.get_name()
-                # assuming ports only connects to macros
-                for col_idx, h_module_idx in enumerate(module_indices):
-                    # col index
-                    entry = 0
-                    # store connected module
-                    h_module = self.modules_w_pins[h_module_idx]
-                    # get connected module name
-                    h_module_name = h_module.get_name()
-                
-                    if curr_port_name in h_module.get_connection():
-                        entry += h_module.get_connection()[curr_port_name]
+                cluster_of_port[curr_port.get_name()] = (
+                    row_idx + len(module_indices))
 
-                    if h_module_name in curr_port.get_connection():
-                        entry += curr_port.get_connection()[h_module_name]
-            
-                    macro_adj[row_idx * (len(module_indices) + len(clustered_ports)) + col_idx] += entry
-                    macro_adj[col_idx * (len(module_indices) + len(clustered_ports)) + row_idx] += entry
-                
+        def _add(i, j, count):
+            macro_adj[i * num_nodes + j] += count
+            macro_adj[j * num_nodes + i] += count
+
+        for row_idx, module_idx in enumerate(ordered):
+            for other_name, count in (
+                    self.modules_w_pins[module_idx]
+                    .get_connection().items()):
+                j = name_to_row.get(other_name)
+                if j is not None:
+                    _add(row_idx, j, count)
+                else:
+                    cj = cluster_of_port.get(other_name)
+                    if cj is not None:
+                        _add(row_idx, cj, count)
+        for cluster_cell in clustered_ports.values():
+            for curr_port in cluster_cell:
+                crow = cluster_of_port[curr_port.get_name()]
+                for other_name, count in (
+                        curr_port.get_connection().items()):
+                    j = name_to_row.get(other_name)
+                    if j is not None:
+                        _add(crow, j, count)
+
         return macro_adj, sorted(cell_location)
 
     def is_node_fixed(self, node_idx: int):

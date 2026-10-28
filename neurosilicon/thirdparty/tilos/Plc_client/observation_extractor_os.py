@@ -165,20 +165,23 @@ class ObservationExtractor(object):
     num_nodes = len(self.plc.get_macro_indices()) + len(
         self.clustered_port_locations_vec)
     assert num_nodes * num_nodes == len(self.adj_vec)
-    sparse_adj_i = []
-    sparse_adj_j = []
-    sparse_adj_weight = []
-    edge_counts = np.zeros((self._observation_config.max_num_nodes,),
-                           dtype=np.int32) # issue with determine max_num_nodes
-    for i in range(num_nodes):
-      for j in range(i + 1, num_nodes):
-        weight = self.adj_vec[i + num_nodes * j]
-        if weight > 0:
-          sparse_adj_i.append(i)
-          sparse_adj_j.append(j)
-          sparse_adj_weight.append(weight)
-          edge_counts[i] += 1
-          edge_counts[j] += 1
+    # Vectorized equivalent of the original i<j double loop
+    # (identical sparse entries/order). The loop took minutes on
+    # designs beyond the AlphaChip-era 5000-node cap — openc906
+    # has 16k nodes — and its scratch array was sized by the cap,
+    # crashing reset ("index 7445 out of bounds for size 5000").
+    # Features are still padded/truncated to max_num_nodes later.
+    adj = np.asarray(self.adj_vec, dtype=np.float64).reshape(
+        (num_nodes, num_nodes), order='F')
+    iu = np.triu_indices(num_nodes, k=1)
+    weights = adj[iu]
+    nz = weights > 0
+    sparse_adj_i = iu[0][nz]
+    sparse_adj_j = iu[1][nz]
+    sparse_adj_weight = weights[nz]
+    edge_counts = np.bincount(
+        np.concatenate([sparse_adj_i, sparse_adj_j]),
+        minlength=num_nodes).astype(np.int32)
 
     features['sparse_adj_i'] = np.asarray(sparse_adj_i).astype(np.int32)
     features['sparse_adj_j'] = np.asarray(sparse_adj_j).astype(np.int32)

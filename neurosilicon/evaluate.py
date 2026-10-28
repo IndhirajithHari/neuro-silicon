@@ -71,11 +71,15 @@ def rollout_policy(env, policy, greedy=False, seed=None):
 
 
 def _new_env(netlist_file, init_placement, fd_steps, extra_costs=None,
-             init_fd=True, extra_mask_fn=None):
+             init_fd=True, extra_mask_fn=None, wirelength_weight=1.0,
+             congestion_weight=0.5, density_weight=1.0):
   return env_lib.ChipPlacementEnv(
       netlist_file, init_placement=init_placement, fd_steps=fd_steps,
       extra_costs=extra_costs, init_fd=init_fd,
-      extra_mask_fn=extra_mask_fn)
+      extra_mask_fn=extra_mask_fn,
+      wirelength_weight=wirelength_weight,
+      congestion_weight=congestion_weight,
+      density_weight=density_weight)
 
 
 def _broadcast_costs(weight, threshold):
@@ -98,7 +102,11 @@ def run_baselines(netlist_file,
                   broadcast_threshold=16,
                   init_fd=True,
                   progress=None,
-                  extra_mask_fn=None):
+                  extra_mask_fn=None,
+                  wirelength_weight=1.0,
+                  congestion_weight=0.5,
+                  density_weight=1.0,
+                  extra_costs=None):
   """Runs random + first-legal baselines; saves best .plc and results.json.
 
   `progress`, when given, is called with each finished episode row
@@ -115,12 +123,15 @@ def run_baselines(netlist_file,
       'broadcast_threshold': broadcast_threshold, 'init_fd': init_fd})
   results = []
   best_cost = float('inf')
-  extra_costs = _broadcast_costs(broadcast_weight, broadcast_threshold)
+  costs = list(_broadcast_costs(broadcast_weight, broadcast_threshold)
+               or []) + list(extra_costs or [])
   for name, fn in (('random', rollout_random),
                    ('first_legal', rollout_first_legal)):
     for ep in range(episodes):
-      env = _new_env(netlist_file, init_placement, fd_steps, extra_costs,
-                     init_fd, extra_mask_fn)
+      env = _new_env(netlist_file, init_placement, fd_steps,
+                     costs or None, init_fd, extra_mask_fn,
+                     wirelength_weight, congestion_weight,
+                     density_weight)
       t0 = time.time()
       reward, info = fn(env, seed=seed + ep) if name == 'random' else fn(env)
       if finetune_epochs > 0 and not info.get('infeasible', True):
