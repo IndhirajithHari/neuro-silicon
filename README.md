@@ -52,20 +52,52 @@ Traditionally, this critical step is held behind expensive commercial licensing,
 ## 🗺️ Architectural Workflow
 
 ```mermaid
-flowchart TD
-    classDef c1 fill:#0d2137,stroke:#0ea5e9,stroke-width:1.5px,color:#f8fafc;
-    classDef c2 fill:#241242,stroke:#a855f7,stroke-width:1.5px,color:#f8fafc;
-    classDef c3 fill:#062e2e,stroke:#14b8a6,stroke-width:1.5px,color:#f8fafc;
-    classDef c4 fill:#381e05,stroke:#f59e0b,stroke-width:1.5px,color:#f8fafc;
-    classDef c5 fill:#06331e,stroke:#10b981,stroke-width:1.5px,color:#f8fafc;
+flowchart LR
+    classDef cIngestion fill:#0d2137,stroke:#0ea5e9,stroke-width:2px,color:#f8fafc;
+    classDef cEngine fill:#241242,stroke:#a855f7,stroke-width:2px,color:#f8fafc;
+    classDef cPolish fill:#062e2e,stroke:#14b8a6,stroke-width:2px,color:#f8fafc;
+    classDef cAiLoop fill:#381e05,stroke:#f59e0b,stroke-width:2px,color:#f8fafc;
+    classDef cOutputs fill:#06331e,stroke:#10b981,stroke-width:2px,color:#f8fafc;
 
-    S1["📁 1. Ingestion: Verilog RTL ➔ Yosys Synthesis ➔ Proto Netlist (.pb.txt)"]:::c1
-    S2["🧠 2. AI Placement: Gymnasium 128×128 MDP ➔ Edge-GNN Policy (Masked PPO)"]:::c2
-    S3["⚡ 3. Physics & Polish: Force-Directed Relaxation ➔ Simulated Annealing & Flips"]:::c3
-    S4["🤖 4. Neuro AI Co-Pilot: SAM Hotspot Diagnostics ➔ ⚡ Auto-Optimize Loop"]:::c4
-    S5["📐 5. Export & Verification: Standard DEF ➔ OpenROAD Script (.tcl)"]:::c5
+    subgraph INGESTION ["1. Design Ingestion"]
+        RTL["Verilog / SystemVerilog\n(e.g., Amber, Servant, Ibex)"]:::cIngestion --> YOSYS["Yosys Synthesis\n(Bundled / System)"]:::cIngestion
+        YOSYS --> PROTO["Proto Netlist Builder\n(.pb.txt + .plc)"]:::cIngestion
+        READY["Ready Netlist Pair\n(ariane, toy, picorv32)"]:::cIngestion --> PROTO
+    end
 
-    S1 --> S2 --> S3 --> S4 --> S5
+    subgraph ENGINE ["2. AI Placement Engine"]
+        PROTO --> MDP["Gymnasium 128x128 MDP"]:::cEngine
+        MDP --> GNN["Edge-GNN Actor-Critic\n(PyTorch CPU)"]:::cEngine
+        GNN --> MASK["Dynamic Legal Cell Masking"]:::cEngine
+        MASK --> PLACE["Sequential Macro Placement"]:::cEngine
+        PLACE --> RELAX["Force-Directed Standard-Cell Relaxation"]:::cEngine
+    end
+
+    subgraph POLISH ["3. Physical Polish & Kinetics"]
+        RELAX --> SA["Simulated Annealing\nMacro Swaps"]:::cPolish
+        SA --> FLIP["0° / 90° / 180° / 270°\nOrientation Optimizer"]:::cPolish
+        FLIP --> PROXY["Multi-Objective Proxy Engine\nWirelength + RUDY Congestion + Density + Fmax"]:::cPolish
+    end
+
+    subgraph AI_LOOP ["4. Neuro AI & Autonomous Loop"]
+        PROXY --> REVIEW["3-Agent Design Review\n(Thermal, Routing, Lead Architect)"]:::cAiLoop
+        PROXY --> AUTOLOOP["⚡ Auto-Optimize Loop"]:::cAiLoop
+        AUTOLOOP --> SAM["SAM Hotspot Segmentation"]:::cAiLoop
+        SAM --> ADVICE["Bottleneck Diagnosis & RTL Advice"]:::cAiLoop
+        ADVICE --> REPUTE["Constrained AI Re-Placement"]:::cAiLoop
+    end
+
+    subgraph OUTPUTS ["5. Export & Verification"]
+        REPUTE --> DEF["Standard DEF Export\n(Flat & Viewer)"]:::cOutputs
+        REPUTE --> TCL["OpenROAD Placement Script\n(.tcl with R0..R270)"]:::cOutputs
+        REPUTE --> ROUTE["OpenROAD Global Route Validation\n(Optional Reality Check)"]:::cOutputs
+    end
+
+    style INGESTION fill:#0b1320,stroke:#0ea5e9,stroke-width:1.5px,color:#93c5fd
+    style ENGINE fill:#150d24,stroke:#a855f7,stroke-width:1.5px,color:#d8b4fe
+    style POLISH fill:#051b1b,stroke:#14b8a6,stroke-width:1.5px,color:#99f6e4
+    style AI_LOOP fill:#201103,stroke:#f59e0b,stroke-width:1.5px,color:#fde68a
+    style OUTPUTS fill:#051d12,stroke:#10b981,stroke-width:1.5px,color:#a7f3d0
 ```
 
 ---
