@@ -203,6 +203,10 @@ Press **⚡ Auto-Optimize (AI Loop)** to launch an autonomous three-phase refine
 
 ## 🚀 Quick Start (in Under 2 Minutes)
 
+<p align="center">
+  <img src="docs/assets/terminal_animated.svg" width="100%" alt="NeuroSilicon Live Terminal Execution Demo" />
+</p>
+
 ### 1. Clone & Set Up Virtual Environment
 
 ```bash
