@@ -9,10 +9,6 @@
 
 <div align="center">
 
-<p align="center">
-  <img src="docs/assets/hero_animated.svg" width="100%" alt="NeuroSilicon - Autonomous AI Chip Floorplanning" />
-</p>
-
 # ⚡ NEUROSILICON
 
 ### *Autonomous AI Chip Floorplanning with Graph Neural Networks & Deep Reinforcement Learning*
@@ -202,10 +198,6 @@ Press **⚡ Auto-Optimize (AI Loop)** to launch an autonomous three-phase refine
 ---
 
 ## 🚀 Quick Start (in Under 2 Minutes)
-
-<p align="center">
-  <img src="docs/assets/terminal_animated.svg" width="100%" alt="NeuroSilicon Live Terminal Execution Demo" />
-</p>
 
 ### 1. Clone & Set Up Virtual Environment
 
