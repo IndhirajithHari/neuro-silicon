@@ -1,0 +1,376 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 420" width="100%" height="100%">
+  <defs>
+    <!-- Background Gradient -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#080c16" />
+      <stop offset="50%" stop-color="#0d1424" />
+      <stop offset="100%" stop-color="#050811" />
+    </linearGradient>
+
+    <!-- Substrate Grid Pattern -->
+    <pattern id="gridPattern" width="30" height="30" patternUnits="userSpaceOnUse">
+      <path d="M 30 0 L 0 0 0 30" fill="none" stroke="#1e293b" stroke-width="0.75" stroke-opacity="0.4" />
+      <circle cx="0" cy="0" r="1" fill="#38bdf8" fill-opacity="0.25" />
+    </pattern>
+
+    <!-- Glowing Bus Gradients -->
+    <linearGradient id="cyanGlow" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#00f3ff" stop-opacity="0.1" />
+      <stop offset="50%" stop-color="#00f3ff" stop-opacity="1" />
+      <stop offset="100%" stop-color="#00f3ff" stop-opacity="0.1" />
+    </linearGradient>
+
+    <linearGradient id="purpleGlow" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#c084fc" stop-opacity="0.1" />
+      <stop offset="50%" stop-color="#a855f7" stop-opacity="1" />
+      <stop offset="100%" stop-color="#c084fc" stop-opacity="0.1" />
+    </linearGradient>
+
+    <linearGradient id="amberGlow" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fbbf24" stop-opacity="0.2" />
+      <stop offset="50%" stop-color="#f59e0b" stop-opacity="1" />
+      <stop offset="100%" stop-color="#fbbf24" stop-opacity="0.2" />
+    </linearGradient>
+
+    <!-- Text Title Gradient -->
+    <linearGradient id="titleGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#38bdf8" />
+      <stop offset="35%" stop-color="#818cf8" />
+      <stop offset="70%" stop-color="#c084fc" />
+      <stop offset="100%" stop-color="#38bdf8" />
+    </linearGradient>
+
+    <!-- Macro Block Fill Gradient -->
+    <linearGradient id="macroFillCyan" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0e2a47" stop-opacity="0.85" />
+      <stop offset="100%" stop-color="#071729" stop-opacity="0.9" />
+    </linearGradient>
+    <linearGradient id="macroFillPurple" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2c1445" stop-opacity="0.85" />
+      <stop offset="100%" stop-color="#170926" stop-opacity="0.9" />
+    </linearGradient>
+    <linearGradient id="macroFillEmerald" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#063826" stop-opacity="0.85" />
+      <stop offset="100%" stop-color="#031f15" stop-opacity="0.9" />
+    </linearGradient>
+
+    <!-- Glowing Filters -->
+    <filter id="glowFilter" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="4" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+
+    <filter id="intenseGlow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="7" result="blur1" />
+      <feGaussianBlur stdDeviation="3" result="blur2" />
+      <feMerge>
+        <feMergeNode in="blur1" />
+        <feMergeNode in="blur2" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+
+    <style>
+      /* Keyframe Animations */
+      @keyframes traceDash {
+        0% { stroke-dashoffset: 400; }
+        100% { stroke-dashoffset: 0; }
+      }
+
+      @keyframes traceDashRev {
+        0% { stroke-dashoffset: -400; }
+        100% { stroke-dashoffset: 0; }
+      }
+
+      @keyframes pulseGlow {
+        0%, 100% { opacity: 0.35; transform: scale(1); }
+        50% { opacity: 0.95; transform: scale(1.02); }
+      }
+
+      @keyframes macroBreathe {
+        0%, 100% { stroke-opacity: 0.4; }
+        50% { stroke-opacity: 1; filter: drop-shadow(0 0 6px #00f3ff); }
+      }
+
+      @keyframes statusBlink {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.3; }
+      }
+
+      @keyframes scanline {
+        0% { transform: translateY(-420px); opacity: 0; }
+        50% { opacity: 0.6; }
+        100% { transform: translateY(420px); opacity: 0; }
+      }
+
+      @keyframes flylineFlow {
+        0% { stroke-dashoffset: 120; }
+        100% { stroke-dashoffset: 0; }
+      }
+
+      .trace-pulse-1 {
+        stroke-dasharray: 40, 160;
+        animation: traceDash 5s linear infinite;
+      }
+
+      .trace-pulse-2 {
+        stroke-dasharray: 60, 200;
+        animation: traceDashRev 6s linear infinite;
+      }
+
+      .trace-pulse-fast {
+        stroke-dasharray: 30, 90;
+        animation: traceDash 3s linear infinite;
+      }
+
+      .pulse-chip {
+        animation: statusBlink 2.2s ease-in-out infinite;
+      }
+
+      .pulse-chip-fast {
+        animation: statusBlink 1.4s ease-in-out infinite;
+      }
+
+      .macro-card {
+        transition: all 0.3s ease;
+      }
+      .macro-card-cyan {
+        animation: macroBreathe 4s ease-in-out infinite;
+      }
+
+      .scan-beam {
+        animation: scanline 8s ease-in-out infinite;
+      }
+
+      .flyline {
+        stroke-dasharray: 6, 6;
+        animation: flylineFlow 2s linear infinite;
+      }
+
+      .hud-text {
+        font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+        letter-spacing: 0.05em;
+      }
+
+      .title-font {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        font-weight: 900;
+        letter-spacing: 0.08em;
+      }
+    </style>
+  </defs>
+
+  <!-- Base Die Substrate -->
+  <rect x="0" y="0" width="1200" height="420" fill="url(#bgGrad)" />
+  <rect x="0" y="0" width="1200" height="420" fill="url(#gridPattern)" />
+
+  <!-- Outer Die Bezel & Fiducial Alignment Marks -->
+  <rect x="14" y="14" width="1172" height="392" rx="10" fill="none" stroke="#1e293b" stroke-width="1.5" />
+  <rect x="18" y="18" width="1164" height="384" rx="8" fill="none" stroke="#0ea5e9" stroke-opacity="0.3" stroke-width="1" />
+  
+  <!-- Corner Wafer Alignment Marks (Fiducials) -->
+  <!-- Top Left -->
+  <circle cx="36" cy="36" r="6" fill="none" stroke="#38bdf8" stroke-width="1.5" />
+  <path d="M 26 36 L 46 36 M 36 26 L 36 46" stroke="#38bdf8" stroke-width="1" />
+  <!-- Top Right -->
+  <circle cx="1164" cy="36" r="6" fill="none" stroke="#38bdf8" stroke-width="1.5" />
+  <path d="M 1154 36 L 1174 36 M 1164 26 L 1164 46" stroke="#38bdf8" stroke-width="1" />
+  <!-- Bottom Left -->
+  <circle cx="36" cy="384" r="6" fill="none" stroke="#38bdf8" stroke-width="1.5" />
+  <path d="M 26 384 L 46 384 M 36 374 L 36 394" stroke="#38bdf8" stroke-width="1" />
+  <!-- Bottom Right -->
+  <circle cx="1164" cy="384" r="6" fill="none" stroke="#38bdf8" stroke-width="1.5" />
+  <path d="M 1154 384 L 1174 384 M 1164 374 L 1164 394" stroke="#38bdf8" stroke-width="1" />
+
+  <!-- Substrate Coordinates / Grid Labels -->
+  <text x="56" y="38" class="hud-text" font-size="10" fill="#64748b">[DIE: 128x128 MDP]</text>
+  <text x="1030" y="38" class="hud-text" font-size="10" fill="#64748b">[PDK: SKY130 / ASAP7]</text>
+  <text x="56" y="388" class="hud-text" font-size="10" fill="#64748b">[ORIGIN: (0, 0)]</text>
+  <text x="1058" y="388" class="hud-text" font-size="10" fill="#64748b">[TECH: CPU-NATIVE]</text>
+
+  <!-- Static Background Bus Circuit Traces -->
+  <g stroke="#1e293b" stroke-width="1.5" fill="none">
+    <!-- Horizontal highway tracks -->
+    <path d="M 60 90 L 1140 90" />
+    <path d="M 60 330 L 1140 330" />
+    <!-- Vertical bus links -->
+    <path d="M 210 50 L 210 370" />
+    <path d="M 990 50 L 990 370" />
+    <!-- Diagonal escape routing -->
+    <path d="M 100 90 L 130 60 L 210 60" />
+    <path d="M 1070 90 L 1100 60 L 1140 60" />
+    <path d="M 100 330 L 130 360 L 210 360" />
+    <path d="M 1070 330 L 1100 360 L 1140 360" />
+    <!-- Center interconnect rings -->
+    <path d="M 330 90 L 370 130 L 830 130 L 870 90" />
+    <path d="M 330 330 L 370 290 L 830 290 L 870 330" />
+  </g>
+
+  <!-- Dynamic Pulsing Circuit Traces (Animated Glowing Currents) -->
+  <g fill="none">
+    <path d="M 60 90 L 1140 90" stroke="#00f3ff" stroke-width="2" class="trace-pulse-1" filter="url(#glowFilter)" />
+    <path d="M 1140 330 L 60 330" stroke="#a855f7" stroke-width="2" class="trace-pulse-2" filter="url(#glowFilter)" />
+    <path d="M 210 50 L 210 370" stroke="#38bdf8" stroke-width="2" class="trace-pulse-fast" filter="url(#glowFilter)" />
+    <path d="M 990 370 L 990 50" stroke="#00f3ff" stroke-width="2" class="trace-pulse-fast" filter="url(#glowFilter)" />
+    
+    <path d="M 330 90 L 370 130 L 830 130 L 870 90" stroke="#38bdf8" stroke-width="1.8" class="trace-pulse-1" filter="url(#glowFilter)" />
+    <path d="M 870 330 L 830 290 L 370 290 L 330 330" stroke="#f59e0b" stroke-width="1.8" class="trace-pulse-2" filter="url(#glowFilter)" />
+  </g>
+
+  <!-- Hard Macro Blocks (Placed on Die with status badges) -->
+  <!-- Macro 1: RV64_CORE_0 (Top Left) -->
+  <g class="macro-card" transform="translate(70, 115)">
+    <rect width="130" height="85" rx="6" fill="url(#macroFillCyan)" stroke="#0ea5e9" stroke-width="1.5" class="macro-card-cyan" />
+    <rect x="0" y="0" width="130" height="20" rx="6" fill="#0284c7" fill-opacity="0.3" />
+    <circle cx="12" cy="10" r="3.5" fill="#00f3ff" class="pulse-chip-fast" />
+    <text x="22" y="14" class="hud-text" font-size="9" font-weight="bold" fill="#bae6fd">RV64_CORE_0</text>
+    <text x="10" y="38" class="hud-text" font-size="8" fill="#7dd3fc">TYPE: HARD_MACRO</text>
+    <text x="10" y="52" class="hud-text" font-size="8" fill="#7dd3fc">PINS: 142 · ORIENT: R0</text>
+    <text x="10" y="66" class="hud-text" font-size="8" fill="#38bdf8">STATUS: PLACED (RL)</text>
+    <rect x="10" y="72" width="110" height="4" rx="2" fill="#0f172a" />
+    <rect x="10" y="72" width="94" height="4" rx="2" fill="#00f3ff" />
+  </g>
+
+  <!-- Macro 2: SRAM_L2_CACHE_0 (Bottom Left) -->
+  <g class="macro-card" transform="translate(70, 225)">
+    <rect width="130" height="85" rx="6" fill="url(#macroFillPurple)" stroke="#a855f7" stroke-width="1.5" />
+    <rect x="0" y="0" width="130" height="20" rx="6" fill="#7e22ce" fill-opacity="0.3" />
+    <circle cx="12" cy="10" r="3.5" fill="#c084fc" class="pulse-chip" />
+    <text x="22" y="14" class="hud-text" font-size="9" font-weight="bold" fill="#f3e8ff">SRAM_L2_512K</text>
+    <text x="10" y="38" class="hud-text" font-size="8" fill="#d8b4fe">TYPE: MEMORY_BANK</text>
+    <text x="10" y="52" class="hud-text" font-size="8" fill="#d8b4fe">PINS: 256 · ORIENT: R90</text>
+    <text x="10" y="66" class="hud-text" font-size="8" fill="#c084fc">CONGESTION: 0.021</text>
+    <rect x="10" y="72" width="110" height="4" rx="2" fill="#0f172a" />
+    <rect x="10" y="72" width="82" height="4" rx="2" fill="#a855f7" />
+  </g>
+
+  <!-- Macro 3: EDGE_GNN_ACCEL (Top Right) -->
+  <g class="macro-card" transform="translate(1000, 115)">
+    <rect width="130" height="85" rx="6" fill="url(#macroFillEmerald)" stroke="#10b981" stroke-width="1.5" />
+    <rect x="0" y="0" width="130" height="20" rx="6" fill="#059669" fill-opacity="0.3" />
+    <circle cx="12" cy="10" r="3.5" fill="#34d399" class="pulse-chip-fast" />
+    <text x="22" y="14" class="hud-text" font-size="9" font-weight="bold" fill="#a7f3d0">EDGE_GNN_CORE</text>
+    <text x="10" y="38" class="hud-text" font-size="8" fill="#6ee7b7">POLICY: ACTOR_CRITIC</text>
+    <text x="10" y="52" class="hud-text" font-size="8" fill="#6ee7b7">PINS: 196 · ORIENT: R0</text>
+    <text x="10" y="66" class="hud-text" font-size="8" fill="#34d399">REWARD: +14.8 PPA</text>
+    <rect x="10" y="72" width="110" height="4" rx="2" fill="#0f172a" />
+    <rect x="10" y="72" width="98" height="4" rx="2" fill="#10b981" />
+  </g>
+
+  <!-- Macro 4: AUTO_OPTIMIZE_CO-PILOT (Bottom Right) -->
+  <g class="macro-card" transform="translate(1000, 225)">
+    <rect width="130" height="85" rx="6" fill="url(#macroFillCyan)" stroke="#f59e0b" stroke-width="1.5" />
+    <rect x="0" y="0" width="130" height="20" rx="6" fill="#d97706" fill-opacity="0.3" />
+    <circle cx="12" cy="10" r="3.5" fill="#fbbf24" class="pulse-chip" />
+    <text x="22" y="14" class="hud-text" font-size="9" font-weight="bold" fill="#fef3c7">AUTO_OPTIMIZE</text>
+    <text x="10" y="38" class="hud-text" font-size="8" fill="#fde68a">PHASE: 3 (RE-PLACE)</text>
+    <text x="10" y="52" class="hud-text" font-size="8" fill="#fde68a">DIAG: SAM HOTSPOTS</text>
+    <text x="10" y="66" class="hud-text" font-size="8" fill="#fbbf24">STATUS: CONVERGED</text>
+    <rect x="10" y="72" width="110" height="4" rx="2" fill="#0f172a" />
+    <rect x="10" y="72" width="105" height="4" rx="2" fill="#f59e0b" />
+  </g>
+
+  <!-- Animated Flying Interconnect Nets (Flylines connecting macros to center core) -->
+  <g fill="none" opacity="0.65">
+    <path d="M 200 157 C 270 157, 310 180, 390 190" stroke="#38bdf8" stroke-width="1.2" class="flyline" />
+    <path d="M 200 267 C 270 267, 310 240, 390 230" stroke="#a855f7" stroke-width="1.2" class="flyline" />
+    <path d="M 1000 157 C 930 157, 890 180, 810 190" stroke="#10b981" stroke-width="1.2" class="flyline" />
+    <path d="M 1000 267 C 930 267, 890 240, 810 230" stroke="#f59e0b" stroke-width="1.2" class="flyline" />
+  </g>
+
+  <!-- Central Die Hero Glass Panel -->
+  <rect x="250" y="75" width="700" height="270" rx="16" fill="#0b1324" fill-opacity="0.82" stroke="#334155" stroke-width="1.5" />
+  <rect x="254" y="79" width="692" height="262" rx="13" fill="none" stroke="#38bdf8" stroke-opacity="0.25" stroke-width="1" />
+
+  <!-- Animated Center Scanline Beam -->
+  <g opacity="0.15">
+    <line x1="255" y1="75" x2="945" y2="75" stroke="#38bdf8" stroke-width="3" filter="url(#intenseGlow)" class="scan-beam" />
+  </g>
+
+  <!-- Central Title Header & Branding -->
+  <g text-anchor="middle">
+    <!-- Top Micro Tagline -->
+    <text x="600" y="112" class="hud-text" font-size="11" font-weight="bold" fill="#38bdf8" letter-spacing="0.25em">
+      ⚡ NEXT-GEN EDA WORKSTATION · AUTONOMOUS SILICON DESIGN
+    </text>
+
+    <!-- Main Title -->
+    <text x="600" y="165" class="title-font" font-size="46" fill="url(#titleGrad)" filter="url(#intenseGlow)">
+      NEUROSILICON
+    </text>
+
+    <!-- Subtitle -->
+    <text x="600" y="196" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="14.5" font-weight="500" fill="#cbd5e1" letter-spacing="0.04em">
+      Reinforcement Learning &amp; Force-Directed Physics for Chip Macro Placement
+    </text>
+
+    <!-- Live Status Pills / HUD Tags -->
+    <g transform="translate(280, 222)">
+      <!-- Pill 1: RL Engine -->
+      <rect x="0" y="0" width="145" height="28" rx="14" fill="#032541" stroke="#0ea5e9" stroke-width="1" />
+      <circle cx="14" cy="14" r="3.5" fill="#00f3ff" class="pulse-chip-fast" />
+      <text x="24" y="18" class="hud-text" font-size="9" font-weight="bold" fill="#7dd3fc" text-anchor="start">RL: EDGE-GNN</text>
+
+      <!-- Pill 2: Grid MDP -->
+      <rect x="160" y="0" width="150" height="28" rx="14" fill="#200d38" stroke="#a855f7" stroke-width="1" />
+      <circle cx="174" cy="14" r="3.5" fill="#c084fc" class="pulse-chip" />
+      <text x="184" y="18" class="hud-text" font-size="9" font-weight="bold" fill="#d8b4fe" text-anchor="start">128x128 MASKED</text>
+
+      <!-- Pill 3: Auto-Optimize -->
+      <rect x="325" y="0" width="150" height="28" rx="14" fill="#261603" stroke="#f59e0b" stroke-width="1" />
+      <circle cx="339" cy="14" r="3.5" fill="#fbbf24" class="pulse-chip-fast" />
+      <text x="349" y="18" class="hud-text" font-size="9" font-weight="bold" fill="#fde68a" text-anchor="start">AUTO-OPTIMIZE</text>
+
+      <!-- Pill 4: Open Hardware -->
+      <rect x="490" y="0" width="150" height="28" rx="14" fill="#032918" stroke="#10b981" stroke-width="1" />
+      <circle cx="504" cy="14" r="3.5" fill="#34d399" class="pulse-chip" />
+      <text x="514" y="18" class="hud-text" font-size="9" font-weight="bold" fill="#a7f3d0" text-anchor="start">100% CPU NATIVE</text>
+    </g>
+
+    <!-- Telemetry Bottom Bar in Glass Panel -->
+    <g transform="translate(300, 282)" class="hud-text" font-size="10.5">
+      <text x="0" y="16" fill="#94a3b8" text-anchor="start">
+        <tspan fill="#38bdf8">WIRELENGTH:</tspan> -14.2% PPA
+      </text>
+      <text x="160" y="16" fill="#94a3b8" text-anchor="start">
+        <tspan fill="#a855f7">CONGESTION:</tspan> 0.042 RUDY
+      </text>
+      <text x="325" y="16" fill="#94a3b8" text-anchor="start">
+        <tspan fill="#f59e0b">FMAX:</tspan> 78.4 MHz
+      </text>
+      <text x="460" y="16" fill="#94a3b8" text-anchor="start">
+        <tspan fill="#10b981">STANDARD CELLS:</tspan> RELAXED
+      </text>
+    </g>
+
+    <!-- Small Silicon Valley Signature -->
+    <text x="600" y="328" class="hud-text" font-size="9" fill="#475569">
+      OPEN SOURCE EDA · RISC-V INTEGRATED · SKY130 READY · ZERO GPU CLUSTERS NEEDED
+    </text>
+  </g>
+
+  <!-- Interactive Edge Pins / Bump Pads (Perimeter Array) -->
+  <g fill="#334155" stroke="#475569" stroke-width="0.5">
+    <!-- Top & Bottom Pad Array -->
+    <rect x="250" y="14" width="12" height="6" rx="1" fill="#38bdf8" fill-opacity="0.7" />
+    <rect x="280" y="14" width="12" height="6" rx="1" />
+    <rect x="310" y="14" width="12" height="6" rx="1" />
+    <rect x="340" y="14" width="12" height="6" rx="1" fill="#00f3ff" />
+    <rect x="850" y="14" width="12" height="6" rx="1" fill="#a855f7" />
+    <rect x="880" y="14" width="12" height="6" rx="1" />
+    <rect x="910" y="14" width="12" height="6" rx="1" />
+    <rect x="940" y="14" width="12" height="6" rx="1" fill="#38bdf8" />
+
+    <rect x="250" y="400" width="12" height="6" rx="1" fill="#f59e0b" />
+    <rect x="280" y="400" width="12" height="6" rx="1" />
+    <rect x="310" y="400" width="12" height="6" rx="1" />
+    <rect x="340" y="400" width="12" height="6" rx="1" fill="#10b981" />
+    <rect x="850" y="400" width="12" height="6" rx="1" />
+    <rect x="880" y="400" width="12" height="6" rx="1" fill="#38bdf8" />
+    <rect x="910" y="400" width="12" height="6" rx="1" />
+    <rect x="940" y="400" width="12" height="6" rx="1" fill="#a855f7" />
+  </g>
+</svg>

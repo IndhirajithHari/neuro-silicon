@@ -9,6 +9,10 @@
 
 <div align="center">
 
+<p align="center">
+  <img src="docs/assets/hero_animated.svg" width="100%" alt="NeuroSilicon - Autonomous AI Chip Floorplanning" />
+</p>
+
 # ⚡ NEUROSILICON
 
 ### *Autonomous AI Chip Floorplanning with Graph Neural Networks & Deep Reinforcement Learning*
