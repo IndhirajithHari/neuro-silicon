@@ -41,12 +41,12 @@ from PySide6.QtCore import QObject, QPointF, QThread, QTimer, Signal, Qt
 from PySide6.QtGui import (QAction, QColor, QFont, QPainter, QPen,
                            QPixmap, QPolygonF)
 from PySide6.QtWidgets import (
-    QApplication, QCheckBox, QComboBox, QFileDialog, QFormLayout,
-    QHBoxLayout, QLabel, QLineEdit, QListWidget, QListWidgetItem,
-    QMainWindow, QMessageBox, QPlainTextEdit, QProgressBar, QPushButton,
-    QScrollArea, QSlider, QSpinBox, QDoubleSpinBox, QSplitter, QTableWidget,
-    QFrame, QTableWidgetItem, QTabWidget, QTextBrowser, QVBoxLayout,
-    QWidget)
+    QApplication, QCheckBox, QComboBox, QCompleter, QFileDialog,
+    QFormLayout, QHBoxLayout, QLabel, QLineEdit, QListWidget,
+    QListWidgetItem, QMainWindow, QMessageBox, QPlainTextEdit,
+    QProgressBar, QPushButton, QScrollArea, QSlider, QSpinBox,
+    QDoubleSpinBox, QSplitter, QTableWidget, QFrame, QTableWidgetItem,
+    QTabWidget, QTextBrowser, QVBoxLayout, QWidget)
 
 from neurosilicon import assistant as assistant_lib
 from neurosilicon import discover as discover_lib
@@ -1005,7 +1005,7 @@ class MainWindow(QMainWindow):
     self.tabs.addTab(self._results_tab(), 'Results')
     self.tabs.addTab(self._thermal_tab(), 'Thermal')
     self.tabs.currentChanged.connect(self._tab_changed)
-    self.right_tabs.addTab(self._chat_tab(), 'Assistant')
+    self.right_tabs.addTab(self._chat_tab(), 'Neuro AI')
     self.right_tabs.addTab(self._connectors_tab(), 'Connectors')
     self.right_tabs.addTab(self._guide_tab(), 'Guide')
     self.right_tabs.addTab(self._settings_tab(), 'Settings')
@@ -1296,7 +1296,7 @@ class MainWindow(QMainWindow):
     v = QVBoxLayout(w)
     v.setSpacing(6)
     header = QHBoxLayout()
-    title = QLabel('Assistant')
+    title = QLabel('Neuro AI')
     title.setStyleSheet('font-weight:600; font-size:13px;')
     header.addWidget(title)
     self.chat_status = QLabel('AI: off')
@@ -1319,6 +1319,8 @@ class MainWindow(QMainWindow):
     self.chat_scroll.setHorizontalScrollBarPolicy(
         Qt.ScrollBarAlwaysOff)
     self.chat_area = QWidget()
+    self.chat_area.setStyleSheet('background:#0b141a;')
+    self.chat_scroll.setStyleSheet('background:#0b141a; border:none;')
     self.chat_msgs = QVBoxLayout(self.chat_area)
     self.chat_msgs.setSpacing(8)
     self.chat_msgs.addStretch(1)
@@ -1330,16 +1332,38 @@ class MainWindow(QMainWindow):
         'result — or type a constraint like "Keep a 20% routing '
         'channel open in the center". Ask "what is connected?" '
         'anytime to see your AI setup.')
-    quick = QHBoxLayout()
-    quick.setSpacing(6)
-    for prompt in ('Explain the best run', 'Why is congestion high?',
-                   'Which macros run hottest?',
-                   'Keep a 20% routing channel open in the center'):
-      b = QPushButton(prompt.split('?')[0][:24])
-      b.setToolTip(prompt)
-      b.clicked.connect(lambda _=0, t=prompt: self._chat_send(t))
-      quick.addWidget(b)
-    v.addLayout(quick)
+    self._chat_suggestions = [
+        'Explain the best run',
+        'Why is congestion high?',
+        'Which macros run hottest?',
+        'What is connected?',
+        'Keep a 20% routing channel open in the center',
+        'Spread the hot macros apart',
+        'Keep a routing channel at the edge',
+        'What should I try next to improve placement?',
+    ]
+    self.chat_suggest = QComboBox()
+    self.chat_suggest.setToolTip(
+        'Pick a suggested question or placement constraint — it is '
+        'asked immediately. You can also just type in the box below: '
+        'suggestions appear as you type.')
+    self.chat_suggest.setStyleSheet(
+        'QComboBox { background:#21262d; border:1px solid #30363d; '
+        'border-radius:8px; padding:4px 8px; color:#e6edf3; }')
+    self.chat_suggest.addItem(
+        'Suggestions — pick a question or constraint…')
+    self.chat_suggest.addItems(self._chat_suggestions)
+    self.chat_suggest.activated.connect(self._on_suggestion_picked)
+    v.addWidget(self.chat_suggest)
+    self.chat_import_btn = QPushButton('Import project file…')
+    self.chat_import_btn.setToolTip(
+        'Import a chip project from here: pick any file inside the '
+        'design (RTL .v/.sv, a .zip, or a netlist.pb.txt / .plc pair). '
+        'Ready netlists register instantly; RTL opens in the Import '
+        'tab to confirm the top module before synthesis. You can '
+        'also type: import <path>')
+    self.chat_import_btn.clicked.connect(self._chat_import_project)
+    v.addWidget(self.chat_import_btn)
     self.apply_fix_btn = QPushButton('Apply AI Fix & Re-Place')
     self.apply_fix_btn.setObjectName('primary')
     self.apply_fix_btn.setToolTip(
@@ -1378,10 +1402,22 @@ class MainWindow(QMainWindow):
     self.chat_input = QLineEdit()
     self.chat_input.setPlaceholderText(
         'Ask about this floorplan, or state a constraint…')
+    completer = QCompleter(self._chat_suggestions, self.chat_input)
+    completer.setCaseSensitivity(Qt.CaseInsensitive)
+    completer.setFilterMode(Qt.MatchContains)
+    completer.setCompletionMode(QCompleter.PopupCompletion)
+    self.chat_input.setCompleter(completer)
+    self.chat_input.setStyleSheet(
+        'QLineEdit { background:#202c33; border:1px solid #202c33; '
+        'border-radius:14px; padding:6px 12px; color:#e9edef; }')
     self.chat_input.returnPressed.connect(
         lambda: self._chat_send())
     send = QPushButton('Send')
     send.setObjectName('primary')
+    send.setStyleSheet(
+        'QPushButton { background:#00a884; border:1px solid #00a884; '
+        'border-radius:14px; padding:6px 14px; color:#ffffff; '
+        'font-weight:600; }')
     send.clicked.connect(lambda: self._chat_send())
     row.addWidget(self.chat_input, 1)
     row.addWidget(send)
@@ -1389,29 +1425,33 @@ class MainWindow(QMainWindow):
     return w
 
   def _bubble(self, who, text):
-    """One chat message bubble (user right / assistant left)."""
+    """One WhatsApp-style bubble (user right-green / Neuro AI left)."""
     is_user = who == 'You'
     bubble = QFrame()
     bubble.setStyleSheet(
-        'QFrame { background:#9e6a1e; border:1px solid #e8a33d; '
-        'border-radius:10px; }' if is_user else
-        'QFrame { background:#161b22; border:1px solid #30363d; '
-        'border-radius:10px; }')
+        'QFrame { background:#005c4b; border:1px solid #005c4b; '
+        'border-radius:12px; }' if is_user else
+        'QFrame { background:#202c33; border:1px solid #202c33; '
+        'border-radius:12px; }')
     bl = QVBoxLayout(bubble)
-    bl.setContentsMargins(10, 7, 10, 7)
-    name = QLabel('You' if is_user else 'Assistant')
-    name.setStyleSheet(
-        'background:transparent; color:#ffd9a0; font-size:10px; '
-        'font-weight:600;' if is_user else
-        'background:transparent; color:#e8a33d; font-size:10px; '
-        'font-weight:600;')
-    bl.addWidget(name)
+    bl.setContentsMargins(10, 7, 10, 5)
+    if not is_user:
+      name = QLabel('Neuro AI')
+      name.setStyleSheet(
+          'background:transparent; color:#25d366; font-size:10px; '
+          'font-weight:600;')
+      bl.addWidget(name)
     body = QLabel(text)
     body.setWordWrap(True)
     body.setTextInteractionFlags(Qt.TextSelectableByMouse)
     body.setMaximumWidth(460)
-    body.setStyleSheet('background:transparent; color:#e6edf3;')
+    body.setStyleSheet('background:transparent; color:#e9edef;')
     bl.addWidget(body)
+    stamp = QLabel(time.strftime('%H:%M'))
+    stamp.setAlignment(Qt.AlignRight)
+    stamp.setStyleSheet(
+        'background:transparent; color:#8696a0; font-size:9px;')
+    bl.addWidget(stamp)
     row = QHBoxLayout()
     row.setContentsMargins(0, 0, 0, 0)
     if is_user:
@@ -1982,7 +2022,8 @@ class MainWindow(QMainWindow):
   def _busy(self, busy):
     buttons = [self.imp_go_btn, self.run_btn]
     for name in ('auto_btn_place', 'auto_btn_chat', 'rtl_btn_import',
-                 'rtl_btn_chat', 'apply_fix_btn', 'review_btn'):
+                 'rtl_btn_chat', 'apply_fix_btn', 'review_btn',
+                 'chat_import_btn'):
       btn = getattr(self, name, None)
       if btn is not None:
         buttons.append(btn)
@@ -3587,11 +3628,75 @@ class MainWindow(QMainWindow):
     bar = self.chat_scroll.verticalScrollBar()
     bar.setValue(bar.maximum())
 
+  def _chat_import_project(self):
+    """Chat import entry: file picker -> shared Import-tab flow."""
+    path, _ = QFileDialog.getOpenFileName(
+        self, 'Import chip project', '',
+        'Design files (*.v *.sv *.pb.txt *.plc *.zip);;All files (*)')
+    if path:
+      self._chat_import_path(path)
+
+  def _chat_import_path(self, path):
+    """Detect a chat-picked/typed project path and route the import.
+
+    Ready netlist pairs register immediately (do_import); RTL projects
+    open pre-filled in the Import tab so the user confirms the top
+    module and file list before the long synthesis starts.
+    """
+    path = path.strip().strip('"').strip("'")
+    if self._thread is not None:
+      self._chat_append('Neuro AI', 'Busy — import waits for the '
+                                    'current job to finish.')
+      return
+    if not os.path.exists(path):
+      self._chat_append('Neuro AI', f'Import: path not found: {path}')
+      return
+    self.imp_path.setText(path)
+    self._disc = None
+    self.tabs.setCurrentIndex(0)
+    self.detect_import()
+    d = self._disc
+    if d is None:
+      self._chat_append('Neuro AI', 'Import: could not read that '
+                                    'path — see the Import tab for '
+                                    'details.')
+      return
+    found = d['found'][0] if d['found'] else d['kind']
+    if d['kind'] == 'ready_netlist':
+      self._chat_append('Neuro AI', f'Import: {found} Registering '
+                                    'it now…')
+      self.do_import()
+    elif d['kind'] == 'unknown':
+      missing = '; '.join(d['missing']) or 'nothing importable found'
+      self._chat_append('Neuro AI', f'Import: {missing}. Pick the '
+                                    'folder holding the RTL or the '
+                                    'netlist pair instead.')
+    else:
+      self._chat_append(
+          'Neuro AI',
+          f'Import: {found} Opened in the Import tab — check the '
+          f"top module ({d['suggested_top'] or 'pick one'}) and the "
+          'checked files, then press Import design to synthesize.')
+
+  def _on_suggestion_picked(self, index):
+    """Suggestion dropdown: ask the picked prompt, then reset."""
+    if index <= 0:
+      return
+    prompt = self.chat_suggest.itemText(index)
+    self.chat_suggest.setCurrentIndex(0)
+    self._chat_send(prompt)
+
   def _chat_send(self, preset=None):
     text = (preset or self.chat_input.text()).strip()
     if not text:
       return
     self.chat_input.clear()
+    if preset is None and text.lower().startswith('import '):
+      candidate = text[7:].strip().strip('"').strip("'")
+      if os.path.exists(candidate):
+        self._chat_append('You', text)
+        self._chat_import_path(candidate)
+        return
     self._chat_append('You', text)
     self._maybe_constraint(text)
     self._settings['llm'] = self._llm_form_settings() \

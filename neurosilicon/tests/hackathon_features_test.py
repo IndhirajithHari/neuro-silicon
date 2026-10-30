@@ -19,6 +19,14 @@ TOY_PLC = (
     'circuit_training/environment/test_data/toy_macro_stdcell/initial.plc')
 
 
+def _write(root, rel, text):
+  p = os.path.join(root, rel)
+  os.makedirs(os.path.dirname(p), exist_ok=True)
+  with open(p, 'w') as f:
+    f.write(text)
+  return p
+
+
 def _toy_plc():
   return setup_lib.create_plc(TOY_NETLIST, TOY_PLC)
 
@@ -166,6 +174,106 @@ def test_render_critical_path_and_compare_figure():
   assert cp['path']
   both = render_lib.comparison_figure(plc, plc)
   assert len(both.axes) >= 2
+
+
+def test_chat_suggestion_dropdown_asks_and_resets():
+  """Suggestion dropdown + type-ahead completer (offscreen Qt).
+
+  Skips where PySide6 is unavailable (CI installs no Qt); runs in the
+  desktop dev environment. Picking a suggestion must post the prompt
+  as a user message with an assistant reply and reset the dropdown to
+  its placeholder; picking the placeholder must post nothing.
+  """
+  os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
+  import pytest
+  pytest.importorskip('PySide6.QtWidgets')
+  from PySide6.QtWidgets import QApplication
+  from neurosilicon import desktop as desktop_lib
+  app = QApplication.instance() or QApplication([])
+  win = desktop_lib.MainWindow()
+  try:
+    win.ai_provider.setCurrentText('off')  # deterministic offline reply
+    assert win.chat_suggest.count() == 1 + len(win._chat_suggestions)
+    assert win.chat_suggest.itemText(0).startswith('Suggestions')
+    assert [win.chat_suggest.itemText(i)
+            for i in range(1, win.chat_suggest.count())] == \
+        win._chat_suggestions
+    completer = win.chat_input.completer()
+    assert completer is not None
+    assert completer.model().stringList() == win._chat_suggestions
+    before = win.chat_msgs.count()
+    win._on_suggestion_picked(0)
+    assert win.chat_msgs.count() == before
+    win._on_suggestion_picked(1)
+    assert win.chat_suggest.currentIndex() == 0
+    assert win.chat_msgs.count() == before + 2  # You + Neuro AI
+    tabs = [win.right_tabs.tabText(i)
+            for i in range(win.right_tabs.count())]
+    assert 'Neuro AI' in tabs and 'Assistant' not in tabs
+    from PySide6.QtWidgets import QLabel
+    ai_holder = win._bubble('Assistant', 'hello')
+    ai_texts = [lb.text() for lb in ai_holder.findChildren(QLabel)]
+    assert 'Neuro AI' in ai_texts
+    assert any(':' in t and len(t) == 5 for t in ai_texts)  # HH:MM stamp
+    you_holder = win._bubble('You', 'hi')
+    you_texts = [lb.text() for lb in you_holder.findChildren(QLabel)]
+    assert 'Neuro AI' not in you_texts and 'hi' in you_texts
+  finally:
+    win.close()
+    app.processEvents()
+
+
+def test_chat_import_routes_paths(tmp_path, monkeypatch):
+  """Neuro AI chat import: typed/picked paths route to the Import tab.
+
+  RTL projects open pre-filled for top/file confirmation (no synthesis
+  started from chat); ready netlist pairs register immediately via
+  do_import (stubbed here so the real registry is untouched); missing
+  paths get a chat message, not a crash. Skips without PySide6.
+  """
+  os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
+  import pytest
+  pytest.importorskip('PySide6.QtWidgets')
+  from PySide6.QtWidgets import QApplication
+  from neurosilicon import desktop as desktop_lib
+  app = QApplication.instance() or QApplication([])
+  win = desktop_lib.MainWindow()
+  try:
+    win.ai_provider.setCurrentText('off')
+    root = str(tmp_path / 'chip')
+    _write(root, 'soc.v', 'module soc; leaf u(); endmodule\n')
+    _write(root, 'leaf.v', 'module leaf; endmodule\n')
+    before = win.chat_msgs.count()
+    win._chat_import_path(root)
+    assert win._disc['kind'] == 'rtl_project'
+    assert win.imp_path.text() == root
+    assert win.tabs.currentIndex() == 0  # Import tab
+    assert win.chat_msgs.count() == before + 1  # guidance, no synth
+    win.chat_input.setText(f'import {root}')
+    before = win.chat_msgs.count()
+    win._chat_send()
+    assert win.chat_msgs.count() == before + 2  # You + Neuro AI
+    monkeypatch.setattr(
+        desktop_lib.QFileDialog, 'getOpenFileName',
+        staticmethod(lambda *a, **k: (root, '')))
+    before = win.chat_msgs.count()
+    win._chat_import_project()
+    assert win._disc['kind'] == 'rtl_project'
+    assert win.chat_msgs.count() == before + 1
+    ready = str(tmp_path / 'ready')
+    _write(ready, 'netlist.pb.txt', 'netlist {}\n')
+    _write(ready, 'initial.plc',
+           '# Width : 200  Height : 100\n# Columns : 8  Rows : 4\n')
+    called = []
+    monkeypatch.setattr(win, 'do_import', lambda: called.append(True))
+    win._chat_import_path(ready)
+    assert called == [True]
+    before = win.chat_msgs.count()
+    win._chat_import_path('/no/such/path')
+    assert win.chat_msgs.count() == before + 1
+  finally:
+    win.close()
+    app.processEvents()
 
 
 def test_desktop_and_console_carry_exact_labels():
