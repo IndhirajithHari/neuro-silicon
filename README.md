@@ -44,40 +44,62 @@ Floorplanning is the pivotal first hour in physical chip design. Before standard
 ## 🗺️ Architectural Workflow
 
 ```mermaid
-flowchart TD
-    subgraph INGESTION ["1. Design Ingestion"]
-        RTL["Verilog / SystemVerilog\n(e.g., Amber, Servant, Ibex)"] --> YOSYS["Yosys Synthesis\n(Bundled / System)"]
-        YOSYS --> PROTO["Proto Netlist Builder\n(.pb.txt + .plc)"]
-        READY["Ready Netlist Pair\n(ariane, toy, picorv32)"] --> PROTO
+flowchart LR
+    classDef ingestion fill:#0d2137,stroke:#0ea5e9,stroke-width:2px,color:#f1f5f9;
+    classDef engine fill:#241242,stroke:#a855f7,stroke-width:2px,color:#f1f5f9;
+    classDef polish fill:#062e2e,stroke:#14b8a6,stroke-width:2px,color:#f1f5f9;
+    classDef ailoop fill:#381e05,stroke:#f59e0b,stroke-width:2px,color:#f1f5f9;
+    classDef outputs fill:#06331e,stroke:#10b981,stroke-width:2px,color:#f1f5f9;
+
+    subgraph S1 ["1. Design Ingestion"]
+        direction TB
+        RTL["Verilog / SystemVerilog"]:::ingestion
+        YOSYS["Yosys Synthesis"]:::ingestion
+        READY["Pre-built Netlists"]:::ingestion
+        PROTO["Proto Netlist (.pb.txt)"]:::ingestion
+        RTL --> YOSYS --> PROTO
+        READY --> PROTO
     end
 
-    subgraph ENGINE ["2. AI Placement Engine"]
-        PROTO --> MDP["Gymnasium 128x128 MDP"]
-        MDP --> GNN["Edge-GNN Actor-Critic\n(PyTorch CPU)"]
-        GNN --> MASK["Dynamic Legal Cell Masking"]
-        MASK --> PLACE["Sequential Macro Placement"]
-        PLACE --> RELAX["Force-Directed Standard-Cell Relaxation"]
+    subgraph S2 ["2. AI Placement Engine"]
+        direction TB
+        MDP["Gymnasium 128x128 MDP"]:::engine
+        GNN["Edge-GNN Actor-Critic"]:::engine
+        MASK["Legal Cell Masking"]:::engine
+        PLACE["Sequential Placement"]:::engine
+        RELAX["Force-Directed Relaxation"]:::engine
+        MDP --> GNN --> MASK --> PLACE --> RELAX
     end
 
-    subgraph POLISH ["3. Physical Polish & Kinetics"]
-        RELAX --> SA["Simulated Annealing\nMacro Swaps"]
-        SA --> FLIP["0° / 90° / 180° / 270°\nOrientation Optimizer"]
-        FLIP --> PROXY["Multi-Objective Proxy Engine\nWirelength + RUDY Congestion + Density + Fmax"]
+    subgraph S3 ["3. Physical Polish"]
+        direction TB
+        SA["Simulated Annealing Swaps"]:::polish
+        FLIP["Orientation Optimizer (R0..R270)"]:::polish
+        PROXY["Proxy Scoring (RUDY / Fmax)"]:::polish
+        SA --> FLIP --> PROXY
     end
 
-    subgraph AI_LOOP ["4. Neuro AI & Autonomous Loop"]
-        PROXY --> REVIEW["3-Agent Design Review\n(Thermal, Routing, Lead Architect)"]
-        PROXY --> AUTOLOOP["⚡ Auto-Optimize Loop"]
-        AUTOLOOP --> SAM["SAM Hotspot Segmentation"]
-        SAM --> ADVICE["Bottleneck Diagnosis & RTL Advice"]
-        ADVICE --> REPUTE["Constrained AI Re-Placement"]
+    subgraph S4 ["4. Neuro AI Loop"]
+        direction TB
+        AUTOLOOP["Auto-Optimize Loop"]:::ailoop
+        SAM["SAM Hotspot Segmenter"]:::ailoop
+        ADVICE["Bottleneck Diagnosis"]:::ailoop
+        REPUTE["Constrained Re-Placement"]:::ailoop
+        AUTOLOOP --> SAM --> ADVICE --> REPUTE
     end
 
-    subgraph OUTPUTS ["5. Export & Verification"]
-        REPUTE --> DEF["Standard DEF Export\n(Flat & Viewer)"]
-        REPUTE --> TCL["OpenROAD Placement Script\n(.tcl with R0..R270)"]
-        REPUTE --> ROUTE["OpenROAD Global Route Validation\n(Optional Reality Check)"]
+    subgraph S5 ["5. Export & Verification"]
+        direction TB
+        DEF["Standard DEF (Flat / Viewer)"]:::outputs
+        TCL["OpenROAD Script (.tcl)"]:::outputs
+        ROUTE["Global Route Validation"]:::outputs
+        DEF --> TCL --> ROUTE
     end
+
+    PROTO --> MDP
+    RELAX --> SA
+    PROXY --> AUTOLOOP
+    REPUTE --> DEF
 ```
 
 ---
