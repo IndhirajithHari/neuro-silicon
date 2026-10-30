@@ -53,39 +53,51 @@ Traditionally, this critical step is held behind expensive commercial licensing,
 
 ```mermaid
 flowchart TD
+    classDef cIngestion fill:#0d2137,stroke:#0ea5e9,stroke-width:2px,color:#f8fafc;
+    classDef cEngine fill:#241242,stroke:#a855f7,stroke-width:2px,color:#f8fafc;
+    classDef cPolish fill:#062e2e,stroke:#14b8a6,stroke-width:2px,color:#f8fafc;
+    classDef cAiLoop fill:#381e05,stroke:#f59e0b,stroke-width:2px,color:#f8fafc;
+    classDef cOutputs fill:#06331e,stroke:#10b981,stroke-width:2px,color:#f8fafc;
+
     subgraph INGESTION ["1. Design Ingestion"]
-        RTL["Verilog / SystemVerilog\n(e.g., Amber, Servant, Ibex)"] --> YOSYS["Yosys Synthesis\n(Bundled / System)"]
-        YOSYS --> PROTO["Proto Netlist Builder\n(.pb.txt + .plc)"]
-        READY["Ready Netlist Pair\n(ariane, toy, picorv32)"] --> PROTO
+        RTL["Verilog / SystemVerilog\n(e.g., Amber, Servant, Ibex)"]:::cIngestion --> YOSYS["Yosys Synthesis\n(Bundled / System)"]:::cIngestion
+        YOSYS --> PROTO["Proto Netlist Builder\n(.pb.txt + .plc)"]:::cIngestion
+        READY["Ready Netlist Pair\n(ariane, toy, picorv32)"]:::cIngestion --> PROTO
     end
 
     subgraph ENGINE ["2. AI Placement Engine"]
-        PROTO --> MDP["Gymnasium 128x128 MDP"]
-        MDP --> GNN["Edge-GNN Actor-Critic\n(PyTorch CPU)"]
-        GNN --> MASK["Dynamic Legal Cell Masking"]
-        MASK --> PLACE["Sequential Macro Placement"]
-        PLACE --> RELAX["Force-Directed Standard-Cell Relaxation"]
+        PROTO --> MDP["Gymnasium 128x128 MDP"]:::cEngine
+        MDP --> GNN["Edge-GNN Actor-Critic\n(PyTorch CPU)"]:::cEngine
+        GNN --> MASK["Dynamic Legal Cell Masking"]:::cEngine
+        MASK --> PLACE["Sequential Macro Placement"]:::cEngine
+        PLACE --> RELAX["Force-Directed Standard-Cell Relaxation"]:::cEngine
     end
 
     subgraph POLISH ["3. Physical Polish & Kinetics"]
-        RELAX --> SA["Simulated Annealing\nMacro Swaps"]
-        SA --> FLIP["0° / 90° / 180° / 270°\nOrientation Optimizer"]
-        FLIP --> PROXY["Multi-Objective Proxy Engine\nWirelength + RUDY Congestion + Density + Fmax"]
+        RELAX --> SA["Simulated Annealing\nMacro Swaps"]:::cPolish
+        SA --> FLIP["0° / 90° / 180° / 270°\nOrientation Optimizer"]:::cPolish
+        FLIP --> PROXY["Multi-Objective Proxy Engine\nWirelength + RUDY Congestion + Density + Fmax"]:::cPolish
     end
 
     subgraph AI_LOOP ["4. Neuro AI & Autonomous Loop"]
-        PROXY --> REVIEW["3-Agent Design Review\n(Thermal, Routing, Lead Architect)"]
-        PROXY --> AUTOLOOP["⚡ Auto-Optimize Loop"]
-        AUTOLOOP --> SAM["SAM Hotspot Segmentation"]
-        SAM --> ADVICE["Bottleneck Diagnosis & RTL Advice"]
-        ADVICE --> REPUTE["Constrained AI Re-Placement"]
+        PROXY --> REVIEW["3-Agent Design Review\n(Thermal, Routing, Lead Architect)"]:::cAiLoop
+        PROXY --> AUTOLOOP["⚡ Auto-Optimize Loop"]:::cAiLoop
+        AUTOLOOP --> SAM["SAM Hotspot Segmentation"]:::cAiLoop
+        SAM --> ADVICE["Bottleneck Diagnosis & RTL Advice"]:::cAiLoop
+        ADVICE --> REPUTE["Constrained AI Re-Placement"]:::cAiLoop
     end
 
     subgraph OUTPUTS ["5. Export & Verification"]
-        REPUTE --> DEF["Standard DEF Export\n(Flat & Viewer)"]
-        REPUTE --> TCL["OpenROAD Placement Script\n(.tcl with R0..R270)"]
-        REPUTE --> ROUTE["OpenROAD Global Route Validation\n(Optional Reality Check)"]
+        REPUTE --> DEF["Standard DEF Export\n(Flat & Viewer)"]:::cOutputs
+        REPUTE --> TCL["OpenROAD Placement Script\n(.tcl with R0..R270)"]:::cOutputs
+        REPUTE --> ROUTE["OpenROAD Global Route Validation\n(Optional Reality Check)"]:::cOutputs
     end
+
+    style INGESTION fill:#0b1320,stroke:#0ea5e9,stroke-width:1.5px,color:#93c5fd
+    style ENGINE fill:#150d24,stroke:#a855f7,stroke-width:1.5px,color:#d8b4fe
+    style POLISH fill:#051b1b,stroke:#14b8a6,stroke-width:1.5px,color:#99f6e4
+    style AI_LOOP fill:#201103,stroke:#f59e0b,stroke-width:1.5px,color:#fde68a
+    style OUTPUTS fill:#051d12,stroke:#10b981,stroke-width:1.5px,color:#a7f3d0
 ```
 
 ---
