@@ -42,75 +42,41 @@ Traditionally, this critical step is held behind expensive commercial licensing,
 
 ## 🗺️ Architectural Workflow
 
-The complete NeuroSilicon physical design pipeline is organized into two wide, balanced execution phases flowing seamlessly from design ingestion to verified export:
-
 ```mermaid
-flowchart TB
-    classDef stage1 fill:#0d2137,stroke:#0ea5e9,stroke-width:2px,color:#f8fafc;
-    classDef stage2 fill:#241242,stroke:#a855f7,stroke-width:2px,color:#f8fafc;
-    classDef stage3 fill:#062e2e,stroke:#14b8a6,stroke-width:2px,color:#f8fafc;
-    classDef stage4 fill:#381e05,stroke:#f59e0b,stroke-width:2px,color:#f8fafc;
-    classDef stage5 fill:#06331e,stroke:#10b981,stroke-width:2px,color:#f8fafc;
-
-    subgraph PHASE1 ["PHASE I: INGESTION, DEEP RL PLACEMENT & PHYSICAL POLISH"]
-        direction LR
-        subgraph S1 ["1. Design Ingestion"]
-            direction TB
-            RTL["Verilog / SystemVerilog RTL"]:::stage1
-            YOSYS["Yosys Synthesis Engine"]:::stage1
-            NETLIST["Proto Netlist (.pb.txt + .plc)"]:::stage1
-            RTL --> YOSYS --> NETLIST
-        end
-
-        subgraph S2 ["2. AI Placement Engine"]
-            direction TB
-            MDP["Gymnasium 128x128 MDP"]:::stage2
-            GNN["Edge-GNN Actor-Critic (PPO)"]:::stage2
-            PLACE["Sequential Macro Placement"]:::stage2
-            MDP --> GNN --> PLACE
-        end
-
-        subgraph S3 ["3. Physics & Polish"]
-            direction TB
-            RELAX["Force-Directed StdCell Relaxation"]:::stage3
-            SA["Simulated Annealing Swaps"]:::stage3
-            FLIP["Orientation Optimizer (R0..R270)"]:::stage3
-            RELAX --> SA --> FLIP
-        end
-
-        S1 ==> S2 ==> S3
+flowchart TD
+    subgraph INGESTION ["1. Design Ingestion"]
+        RTL["Verilog / SystemVerilog\n(e.g., Amber, Servant, Ibex)"] --> YOSYS["Yosys Synthesis\n(Bundled / System)"]
+        YOSYS --> PROTO["Proto Netlist Builder\n(.pb.txt + .plc)"]
+        READY["Ready Netlist Pair\n(ariane, toy, picorv32)"] --> PROTO
     end
 
-    subgraph PHASE2 ["PHASE II: PROXY SCORING, NEURO AI LOOP & VERIFIED EXPORT"]
-        direction LR
-        subgraph S4 ["4. Multi-Objective Scoring"]
-            direction TB
-            PROXY["Wirelength + Congestion + Density"]:::stage4
-            SAM["SAM Hotspot Segmentation"]:::stage4
-            FMAX["Estimated Fmax & Timing Path"]:::stage4
-            PROXY --> SAM --> FMAX
-        end
-
-        subgraph S5 ["5. Neuro AI Co-Pilot"]
-            direction TB
-            AUTOLOOP["⚡ Auto-Optimize Autonomous Loop"]:::stage4
-            REVIEW["3-Agent Review (Thermal / Routing / Arch)"]:::stage4
-            RTLFIX["RTL Bottleneck Synthesis Advice"]:::stage4
-            AUTOLOOP --- REVIEW --- RTLFIX
-        end
-
-        subgraph S6 ["6. Export & Validation"]
-            direction TB
-            DEF["Standard DEF (Flat / Viewer)"]:::stage5
-            TCL["OpenROAD TCL Placement Script"]:::stage5
-            ROUTE["OpenROAD Global Route Validation"]:::stage5
-            DEF --> TCL --> ROUTE
-        end
-
-        S4 ==> S5 ==> S6
+    subgraph ENGINE ["2. AI Placement Engine"]
+        PROTO --> MDP["Gymnasium 128x128 MDP"]
+        MDP --> GNN["Edge-GNN Actor-Critic\n(PyTorch CPU)"]
+        GNN --> MASK["Dynamic Legal Cell Masking"]
+        MASK --> PLACE["Sequential Macro Placement"]
+        PLACE --> RELAX["Force-Directed Standard-Cell Relaxation"]
     end
 
-    PHASE1 ==>|Floorplan Simulation State| PHASE2
+    subgraph POLISH ["3. Physical Polish & Kinetics"]
+        RELAX --> SA["Simulated Annealing\nMacro Swaps"]
+        SA --> FLIP["0° / 90° / 180° / 270°\nOrientation Optimizer"]
+        FLIP --> PROXY["Multi-Objective Proxy Engine\nWirelength + RUDY Congestion + Density + Fmax"]
+    end
+
+    subgraph AI_LOOP ["4. Neuro AI & Autonomous Loop"]
+        PROXY --> REVIEW["3-Agent Design Review\n(Thermal, Routing, Lead Architect)"]
+        PROXY --> AUTOLOOP["⚡ Auto-Optimize Loop"]
+        AUTOLOOP --> SAM["SAM Hotspot Segmentation"]
+        SAM --> ADVICE["Bottleneck Diagnosis & RTL Advice"]
+        ADVICE --> REPUTE["Constrained AI Re-Placement"]
+    end
+
+    subgraph OUTPUTS ["5. Export & Verification"]
+        REPUTE --> DEF["Standard DEF Export\n(Flat & Viewer)"]
+        REPUTE --> TCL["OpenROAD Placement Script\n(.tcl with R0..R270)"]
+        REPUTE --> ROUTE["OpenROAD Global Route Validation\n(Optional Reality Check)"]
+    end
 ```
 
 ---
