@@ -113,14 +113,22 @@ Watch NeuroSilicon's Edge-GNN and real-time physics engine place macros and rela
   </tr>
   <tr>
     <td align="center" width="50%">
-      <img src="docs/assets/chip_01.gif" width="100%" alt="Sequential Macro Placement on RISC-V Core" />
+      <video src="https://github.com/IndhirajithHari/neuro-silicon/raw/main/docs/assets/chip_01.mp4" controls autoplay loop muted playsinline width="100%">
+        <source src="https://github.com/IndhirajithHari/neuro-silicon/raw/main/docs/assets/chip_01.mp4" type="video/mp4">
+        <source src="docs/assets/chip_01.mp4" type="video/mp4">
+        <img src="docs/assets/chip_01.gif" width="100%" alt="Sequential Macro Placement on RISC-V Core" />
+      </video>
       <br>
-      <sub>▶️ <a href="docs/assets/chip_01.mp4"><b>Watch High-Resolution MP4 (chip 01.mp4)</b></a></sub>
+      <sub>▶️ <a href="docs/assets/chip_01.mp4"><b>Watch Direct HD MP4 Video</b></a></sub>
     </td>
     <td align="center" width="50%">
-      <img src="docs/assets/chip_02.gif" width="100%" alt="Force-Directed Physics & Congestion" />
+      <video src="https://github.com/IndhirajithHari/neuro-silicon/raw/main/docs/assets/chip_02.mp4" controls autoplay loop muted playsinline width="100%">
+        <source src="https://github.com/IndhirajithHari/neuro-silicon/raw/main/docs/assets/chip_02.mp4" type="video/mp4">
+        <source src="docs/assets/chip_02.mp4" type="video/mp4">
+        <img src="docs/assets/chip_02.gif" width="100%" alt="Force-Directed Physics & Congestion" />
+      </video>
       <br>
-      <sub>▶️ <a href="docs/assets/chip_02.mp4"><b>Watch High-Resolution MP4 (chip 02.mp4)</b></a></sub>
+      <sub>▶️ <a href="docs/assets/chip_02.mp4"><b>Watch Direct HD MP4 Video</b></a></sub>
     </td>
   </tr>
   <tr>
