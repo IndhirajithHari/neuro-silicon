@@ -253,13 +253,28 @@ def test_chat_import_routes_paths(tmp_path, monkeypatch):
     before = win.chat_msgs.count()
     win._chat_send()
     assert win.chat_msgs.count() == before + 2  # You + Neuro AI
+    # AI import opens a FOLDER picker (not a file picker) and
+    # auto-fetches the RTL project files inside it.
+    assert win.chat_import_btn.text() == 'Import project folder…'
     monkeypatch.setattr(
         desktop_lib.QFileDialog, 'getOpenFileName',
-        staticmethod(lambda *a, **k: (root, '')))
+        staticmethod(lambda *a, **k: (_ for _ in ()).throw(
+            AssertionError('AI import must not open a file picker'))))
+    monkeypatch.setattr(
+        desktop_lib.QFileDialog, 'getExistingDirectory',
+        staticmethod(lambda *a, **k: root))
     before = win.chat_msgs.count()
     win._chat_import_project()
     assert win._disc['kind'] == 'rtl_project'
     assert win.chat_msgs.count() == before + 1
+    assert win.imp_top.currentText() == 'soc'
+    assert set(win._checked_files()) == {'soc.v', 'leaf.v'}
+    # A typed single RTL file also resolves to its folder project.
+    win._disc = None
+    win._chat_import_path(os.path.join(root, 'soc.v'))
+    assert win._disc['kind'] == 'rtl_project'
+    assert win.imp_path.text() == root
+    assert set(win._checked_files()) == {'soc.v', 'leaf.v'}
     ready = str(tmp_path / 'ready')
     _write(ready, 'netlist.pb.txt', 'netlist {}\n')
     _write(ready, 'initial.plc',

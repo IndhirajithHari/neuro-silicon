@@ -1355,13 +1355,13 @@ class MainWindow(QMainWindow):
     self.chat_suggest.addItems(self._chat_suggestions)
     self.chat_suggest.activated.connect(self._on_suggestion_picked)
     v.addWidget(self.chat_suggest)
-    self.chat_import_btn = QPushButton('Import project file…')
+    self.chat_import_btn = QPushButton('Import project folder…')
     self.chat_import_btn.setToolTip(
-        'Import a chip project from here: pick any file inside the '
-        'design (RTL .v/.sv, a .zip, or a netlist.pb.txt / .plc pair). '
-        'Ready netlists register instantly; RTL opens in the Import '
-        'tab to confirm the top module before synthesis. You can '
-        'also type: import <path>')
+        'Import a chip project from here: pick the project folder — '
+        'NeuroSilicon auto-fetches the RTL (.v/.sv) project files '
+        'inside it, auto-picks the top module, and opens them in '
+        'the Import tab. Ready netlists register instantly. You '
+        'can also type: import <folder>')
     self.chat_import_btn.clicked.connect(self._chat_import_project)
     v.addWidget(self.chat_import_btn)
     self.apply_fix_btn = QPushButton('Apply AI Fix & Re-Place')
@@ -3629,19 +3629,24 @@ class MainWindow(QMainWindow):
     bar.setValue(bar.maximum())
 
   def _chat_import_project(self):
-    """Chat import entry: file picker -> shared Import-tab flow."""
-    path, _ = QFileDialog.getOpenFileName(
-        self, 'Import chip project', '',
-        'Design files (*.v *.sv *.pb.txt *.plc *.zip);;All files (*)')
+    """Chat import entry: folder picker -> shared Import-tab flow.
+
+    Opens a folder (never a single file); discovery then auto-fetches
+    every RTL project file inside it and auto-picks the top module.
+    """
+    path = QFileDialog.getExistingDirectory(
+        self, 'Import chip project folder')
     if path:
       self._chat_import_path(path)
 
   def _chat_import_path(self, path):
-    """Detect a chat-picked/typed project path and route the import.
+    """Detect a chat-picked/typed project folder and route the import.
 
-    Ready netlist pairs register immediately (do_import); RTL projects
-    open pre-filled in the Import tab so the user confirms the top
-    module and file list before the long synthesis starts.
+    A single file (typed `import <file>` or a legacy pick) resolves to
+    its containing folder, so the whole RTL project is fetched, not
+    just that file. Ready netlist pairs register immediately
+    (do_import); RTL projects open pre-filled in the Import tab so the
+    user confirms the top module and file list before synthesis.
     """
     path = path.strip().strip('"').strip("'")
     if self._thread is not None:
@@ -3651,6 +3656,8 @@ class MainWindow(QMainWindow):
     if not os.path.exists(path):
       self._chat_append('Neuro AI', f'Import: path not found: {path}')
       return
+    if os.path.isfile(path) and not path.lower().endswith('.zip'):
+      path = os.path.dirname(os.path.abspath(path))
     self.imp_path.setText(path)
     self._disc = None
     self.tabs.setCurrentIndex(0)
@@ -3674,9 +3681,11 @@ class MainWindow(QMainWindow):
     else:
       self._chat_append(
           'Neuro AI',
-          f'Import: {found} Opened in the Import tab — check the '
-          f"top module ({d['suggested_top'] or 'pick one'}) and the "
-          'checked files, then press Import design to synthesize.')
+          f'Import: {found} Auto-fetched {len(d["rtl_files"])} RTL '
+          f'project file(s) from the folder and opened them in the '
+          f"Import tab — check the top module "
+          f"({d['suggested_top'] or 'pick one'}) and the checked "
+          'files, then press Import design to synthesize.')
 
   def _on_suggestion_picked(self, index):
     """Suggestion dropdown: ask the picked prompt, then reset."""
@@ -3720,6 +3729,18 @@ class MainWindow(QMainWindow):
 
 
 def main():
+  if '--auto-record-all' in sys.argv:
+    argv = [a for a in sys.argv if a != '--auto-record-all']
+    outdir = os.path.join(os.path.dirname(os.path.dirname(
+        os.path.abspath(__file__))), 'recordings_phase1')
+    if '--record-dir' in argv:
+      i = argv.index('--record-dir')
+      outdir = argv[i + 1]
+      del argv[i:i + 2]
+    sys.argv = argv
+    os.makedirs(outdir, exist_ok=True)
+    from neurosilicon import auto_record
+    sys.exit(auto_record.run_desktop_auto_record(outdir))
   app = QApplication(sys.argv)
   app.setApplicationName('NeuroSilicon')
   win = MainWindow()
